@@ -30,8 +30,12 @@ canvas#game { position: fixed; inset: 0; display: block; touch-action: none; }
   font-weight: 600;
   pointer-events: auto;
   white-space: nowrap;
+  flex-shrink: 0;
+}
+#msStat {
+  flex-shrink: 1;
   overflow: hidden; text-overflow: ellipsis;
-  max-width: 46vw;
+  min-width: 0;
 }
 button.stat { cursor: pointer; }
 .stat.bad { background: rgba(140, 30, 30, 0.9); animation: blink 1s infinite; }
