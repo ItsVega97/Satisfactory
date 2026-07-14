@@ -55,6 +55,31 @@ function updateTopbar() {
   } else {
     $('msVal').textContent = '¡Todo completado!';
   }
+  updateMissionHud();
+}
+
+/* ---------------- HUD de misión (flotante, bajo el indicador eléctrico) ---------------- */
+let _mhLast = '';
+function updateMissionHud() {
+  const el = $('missionHud');
+  const ms = currentMilestone();
+  let html;
+  if (!ms) {
+    html = `<div class="mh-title">Misiones completadas</div>
+      <div class="mh-reqs"><span class="mh-req ok">¡Ascensor Espacial terminado!</span></div>`;
+  } else {
+    let rows = '';
+    for (const item in ms.req) {
+      const done = state.msProgress[item] || 0;
+      const need = ms.req[item];
+      rows += `<span class="mh-req ${done >= need ? 'ok' : ''}">
+        <img src="${itemIconURL(item)}" alt="${itemName(item)}">${done}/${need}</span>`;
+    }
+    html = `<div class="mh-title">Misión ${state.milestoneIndex + 1}/${MILESTONES.length}: ${ms.name}</div>
+      <div class="mh-reqs">${rows}</div>`;
+  }
+  if (html !== _mhLast) { el.innerHTML = html; _mhLast = html; }
+  el.classList.remove('hidden');
 }
 
 /* ---------------- Palette de construcción ---------------- */
@@ -154,10 +179,10 @@ function openHubPanel(tab) {
 function renderHubSheet() {
   const body = $('sheetBody');
   const ms = currentMilestone();
+  if (ui.hubTab !== 'banco') ui.hubTab = 'hitos';
   let html = `<div class="tabs">
     <button class="tab ${ui.hubTab === 'hitos' ? 'on' : ''}" data-tab="hitos">Misiones</button>
-    <button class="tab ${ui.hubTab === 'materiales' ? 'on' : ''}" data-tab="materiales">Materiales</button>
-    <button class="tab ${ui.hubTab === 'banco' ? 'on' : ''}" data-tab="banco">Banco</button>
+    <button class="tab ${ui.hubTab === 'banco' ? 'on' : ''}" data-tab="banco">Banco de artesanía</button>
   </div>`;
 
   if (ui.hubTab === 'hitos') {
@@ -196,37 +221,6 @@ function renderHubSheet() {
         <span class="ms-state">${cls === 'done' ? 'Completada' : cls === 'now' ? 'En curso' : 'Pendiente'}</span></div>`;
     });
     html += `</div>`;
-  } else if (ui.hubTab === 'materiales') {
-    // resumen de materiales: HUB (inventario), contenedores y mineros
-    const rows = {};
-    const add = (item, col, n) => {
-      if (n <= 0) return;
-      if (!rows[item]) rows[item] = { hub: 0, alm: 0, min: 0 };
-      rows[item][col] += n;
-    };
-    for (const k in state.inventory) add(k, 'hub', state.inventory[k]);
-    for (const b of state.buildings) {
-      if (b.type === 'storage') for (const k in b.store) add(k, 'alm', b.store[k]);
-      if ((b.type === 'miner1' || b.type === 'miner2' || b.type === 'portable_miner') && b.nodeType) {
-        add(NODE_TYPES[b.nodeType].item, 'min', Math.floor(b.buf));
-      }
-    }
-    const keys = Object.keys(ITEMS).filter(k => rows[k]);
-    if (!keys.length) {
-      html += `<p class="dim">Aún no hay materiales almacenados. ¡Pica algún yacimiento!</p>`;
-    } else {
-      html += `<p class="dim">Materiales en el HUB (inventario), en contenedores y en los búferes de los mineros.</p>
-        <div class="mat-head"><span></span><span>Material</span><span>HUB</span><span>Almacén</span><span>Minas</span></div>`;
-      for (const k of keys) {
-        const r = rows[k];
-        const total = r.hub + r.alm + r.min;
-        html += `<div class="mat-row">
-          <img class="icico" src="${itemIconURL(k)}" alt="">
-          <span class="mat-name">${ITEMS[k].name}<small class="dim"> · total ${total}</small></span>
-          <span>${r.hub || '—'}</span><span>${r.alm || '—'}</span><span>${r.min || '—'}</span>
-        </div>`;
-      }
-    }
   } else {
     html += `<p class="dim">Fabrica objetos a mano con los recursos del inventario.</p>`;
     const list = Object.keys(RECIPES).filter(r => state.unlockedR.includes(r) && RECIPES[r].hand);
@@ -494,6 +488,7 @@ function initUI() {
   $('invBtn').addEventListener('click', () => { unlockAudio(); ui.sheetKind === 'inventory' ? closeSheet() : openSheet('inventory', 'Inventario'); });
   $('menuBtn').addEventListener('click', () => { unlockAudio(); ui.sheetKind === 'menu' ? closeSheet() : openSheet('menu', 'Menú'); });
   $('msStat').addEventListener('click', () => { unlockAudio(); openHubPanel('hitos'); });
+  $('missionHud').addEventListener('click', () => { unlockAudio(); openHubPanel('hitos'); });
   $('sheetClose').addEventListener('click', closeSheet);
   $('ghostOk').addEventListener('click', confirmGhost);
   $('ghostCancel').addEventListener('click', cancelGhost);

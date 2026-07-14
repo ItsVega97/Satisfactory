@@ -12,8 +12,8 @@ Eres un ingeniero de FICSIT. Tu misión: completar las **10 misiones del HUB** h
 2. **Taladro portátil** — colócalo sobre un yacimiento (cuesta 5 de mineral de hierro, máx. 6) y toca para recoger lo extraído.
 3. **HUB** — entrega objetos para completar hitos y fabrica piezas a mano en el banco de artesanía.
 4. **Automatiza** — desbloquea Fundidoras, Constructores, Ensambladoras y Mineros Mk.1. Toca cada máquina para asignarle una receta.
-5. **Cintas transportadoras** — arrastra el dedo (modo cintas) para conectar mineros, máquinas y HUB. En su submenú puedes elegir el **Separador**, que reparte una cinta de entrada entre hasta 3 salidas.
-7. **HUB** — pestañas de **Misiones** (lista completa con estado), **Materiales** (qué hay en el HUB, contenedores y mineros, con iconos) y **Banco** de artesanía.
+5. **Cintas transportadoras** — arrastra el dedo (modo cintas) para conectar mineros, máquinas y HUB; **giran con curvas** en las esquinas. En su submenú puedes elegir el **Separador**, que reparte una cinta de entrada entre hasta 3 salidas.
+7. **HUB y HUD** — la **misión actual siempre visible** en pantalla (bajo el indicador eléctrico, con los iconos de cada material y su progreso) y en el HUB el histórico completo de misiones y el banco de artesanía. Los contenedores, mineros, máquinas y generadores **muestran su contenido sobre el edificio** en el propio mapa.
 6. **Red eléctrica** — las máquinas solo funcionan **conectadas a la red**: colócalas cerca del HUB (que suministra 10 MW), de un generador, o construye **postes eléctricos** que tienden cables entre generadores y máquinas. Quema biomasa (arbustos y árboles) en el Quemador y, más tarde, carbón por cinta en el Generador de carbón. Si la demanda supera la generación, la red se sobrecarga.
 
 ### Contenido (referencias de Satisfactory)

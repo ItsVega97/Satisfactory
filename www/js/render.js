@@ -133,9 +133,58 @@ function draw(t) {
   for (const d of drawables) d.f();
 
   drawPowerCables(t);
+  drawContents(t);
   drawOverlays(t);
   drawGhost(t);
   drawFloatTexts(t);
+}
+
+/* ---------------- Contenido visible sobre los edificios ----------------
+   Muestra en el mapa lo que hay dentro: contenedores, búferes de mineros,
+   salidas de las máquinas y combustible de los generadores. */
+function drawContents(t) {
+  if (cam.z < 0.65) return;   // demasiado lejos para leerse
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textBaseline = 'middle';
+  for (const b of state.buildings) {
+    const def = BUILDINGS[b.type];
+    let entries = [];
+    if (b.type === 'storage') {
+      entries = Object.entries(b.store).filter(e => e[1] >= 1).sort((a, c) => c[1] - a[1]).slice(0, 3);
+    } else if (b.type === 'miner1' || b.type === 'miner2' || b.type === 'portable_miner') {
+      const n = Math.floor(b.buf);
+      if (n > 0 && b.nodeType) entries = [[NODE_TYPES[b.nodeType].item, n]];
+    } else if (MACH_RECIPES[b.type]) {
+      entries = Object.entries(b.outBuf).filter(e => e[1] >= 1).slice(0, 2);
+    } else if (def.fuelItem && b.fuel > 0) {
+      entries = [[def.fuelItem, b.fuel]];
+    } else if (b.type === 'splitter' && b.queue && b.queue.length) {
+      entries = [[b.queue[0], b.queue.length]];
+    }
+    if (!entries.length) continue;
+
+    let wsum = 6;
+    const parts = entries.map(([item, nq]) => {
+      const txt = String(Math.floor(nq));
+      const tw = ctx.measureText(txt).width;
+      const w = 16 + tw + 7;
+      wsum += w;
+      return { item, txt, w };
+    });
+    const cx = (b.x + def.w / 2) * TILE;
+    const cy = b.y * TILE - 9 - 26;
+    ctx.fillStyle = 'rgba(12,16,12,0.62)';
+    ctx.beginPath(); ctx.roundRect(cx - wsum / 2, cy - 10, wsum, 20, 10); ctx.fill();
+    let px = cx - wsum / 2 + 6;
+    ctx.textAlign = 'left';
+    for (const p of parts) {
+      drawItemShape(ctx, p.item, px + 7, cy, 6.5);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(p.txt, px + 16, cy + 0.5);
+      px += p.w;
+    }
+  }
+  ctx.textAlign = 'center';
 }
 
 function shadowRect(b) {
@@ -187,45 +236,118 @@ function drawNodes(t) {
   }
 }
 
-/* ---------------- Cintas ---------------- */
+/* ---------------- Cintas (con curvas en las esquinas) ---------------- */
+
+/* Dirección de entrada de una cinta: si le llega exactamente una cinta
+   vecina con dirección distinta a la propia, es una esquina (curva). */
+function beltEntryDir(belt) {
+  let entry = null, count = 0;
+  for (const d of DIR_LIST) {
+    const [dx, dy] = DIRS[d];
+    const nb = state.beltMap[key(belt.x - dx, belt.y - dy)];
+    if (nb && nb.dir === d) { count++; entry = d; }
+  }
+  return (count === 1 && entry !== belt.dir) ? entry : null;
+}
+
+/* Punto (en píxeles de mundo) a lo largo del recorrido de una cinta.
+   Recta: línea por el centro. Curva: bézier cuadrática entre los lados. */
+function beltPointAt(belt, pos, entry) {
+  const cx = belt.x + 0.5, cy = belt.y + 0.5;
+  const [odx, ody] = DIRS[belt.dir];
+  if (!entry) {
+    return { x: (cx + odx * (pos - 0.5)) * TILE, y: (cy + ody * (pos - 0.5)) * TILE };
+  }
+  const [idx, idy] = DIRS[entry];
+  const p0x = cx - idx * 0.5, p0y = cy - idy * 0.5;   // lado por el que entra
+  const p2x = cx + odx * 0.5, p2y = cy + ody * 0.5;   // lado por el que sale
+  const mt = 1 - pos;
+  return {
+    x: (mt * mt * p0x + 2 * mt * pos * cx + pos * pos * p2x) * TILE,
+    y: (mt * mt * p0y + 2 * mt * pos * cy + pos * pos * p2y) * TILE,
+  };
+}
+
+function beltTangentAt(belt, pos, entry) {
+  const [odx, ody] = DIRS[belt.dir];
+  if (!entry) return Math.atan2(ody, odx);
+  const [idx, idy] = DIRS[entry];
+  const cx = belt.x + 0.5, cy = belt.y + 0.5;
+  const p0x = cx - idx * 0.5, p0y = cy - idy * 0.5;
+  const p2x = cx + odx * 0.5, p2y = cy + ody * 0.5;
+  const dx = 2 * (1 - pos) * (cx - p0x) + 2 * pos * (p2x - cx);
+  const dy = 2 * (1 - pos) * (cy - p0y) + 2 * pos * (p2y - cy);
+  return Math.atan2(dy, dx);
+}
+
 function drawBelts(t) {
   const anim = (t / 1000 * BELT_SPEED) % 0.5;
   for (const k in state.beltMap) {
     const belt = state.beltMap[k];
+    const entry = beltEntryDir(belt);
+    belt._entry = entry;
     const x = belt.x * TILE, y = belt.y * TILE;
-    ctx.fillStyle = '#3d4148';
-    ctx.beginPath(); ctx.roundRect(x + 2, y + 2, TILE - 4, TILE - 4, 5); ctx.fill();
-    ctx.fillStyle = '#585e68';
-    ctx.beginPath(); ctx.roundRect(x + 5, y + 5, TILE - 10, TILE - 10, 3); ctx.fill();
-    // flechas animadas
-    const [dx, dy] = DIRS[belt.dir];
-    ctx.save();
-    ctx.translate(x + TILE / 2, y + TILE / 2);
-    ctx.rotate(Math.atan2(dy, dx));
-    ctx.strokeStyle = 'rgba(255,214,79,0.8)';
-    ctx.lineWidth = 2.5;
-    for (let i = 0; i < 2; i++) {
-      const p = ((anim + i * 0.5) % 1) * TILE - TILE / 2;
-      ctx.beginPath();
-      ctx.moveTo(p - 4, -5); ctx.lineTo(p + 2, 0); ctx.lineTo(p - 4, 5);
-      ctx.stroke();
+
+    if (!entry) {
+      // tramo recto
+      ctx.fillStyle = '#3d4148';
+      ctx.beginPath(); ctx.roundRect(x + 2, y + 2, TILE - 4, TILE - 4, 5); ctx.fill();
+      ctx.fillStyle = '#585e68';
+      ctx.beginPath(); ctx.roundRect(x + 5, y + 5, TILE - 10, TILE - 10, 3); ctx.fill();
+      const [dx, dy] = DIRS[belt.dir];
+      ctx.save();
+      ctx.translate(x + TILE / 2, y + TILE / 2);
+      ctx.rotate(Math.atan2(dy, dx));
+      ctx.strokeStyle = 'rgba(255,214,79,0.8)';
+      ctx.lineWidth = 2.5;
+      for (let i = 0; i < 2; i++) {
+        const p = ((anim + i * 0.5) % 1) * TILE - TILE / 2;
+        ctx.beginPath();
+        ctx.moveTo(p - 4, -5); ctx.lineTo(p + 2, 0); ctx.lineTo(p - 4, 5);
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else {
+      // esquina: carril curvo
+      const p0 = beltPointAt(belt, 0, entry);
+      const p2 = beltPointAt(belt, 1, entry);
+      const ccx = (belt.x + 0.5) * TILE, ccy = (belt.y + 0.5) * TILE;
+      ctx.lineCap = 'butt';
+      ctx.strokeStyle = '#3d4148';
+      ctx.lineWidth = TILE - 5;
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.quadraticCurveTo(ccx, ccy, p2.x, p2.y); ctx.stroke();
+      ctx.strokeStyle = '#585e68';
+      ctx.lineWidth = TILE - 12;
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.quadraticCurveTo(ccx, ccy, p2.x, p2.y); ctx.stroke();
+      // flechas animadas siguiendo la curva
+      ctx.strokeStyle = 'rgba(255,214,79,0.8)';
+      ctx.lineWidth = 2.5;
+      for (let i = 0; i < 2; i++) {
+        const tt = (anim * 2 + i * 0.5) % 1;
+        const p = beltPointAt(belt, tt, entry);
+        const ang = beltTangentAt(belt, tt, entry);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(ang);
+        ctx.beginPath();
+        ctx.moveTo(-4, -5); ctx.lineTo(2, 0); ctx.lineTo(-4, 5);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
-    ctx.restore();
   }
-  // objetos sobre cintas
+  // objetos sobre cintas (siguen la curva en las esquinas)
   for (const k in state.beltMap) {
     const belt = state.beltMap[k];
-    const [dx, dy] = DIRS[belt.dir];
     for (const it of belt.items) {
-      const px = (belt.x + 0.5 + dx * (it.pos - 0.5)) * TILE;
-      const py = (belt.y + 0.5 + dy * (it.pos - 0.5)) * TILE;
+      const p = beltPointAt(belt, it.pos, belt._entry);
       const info = ITEMS[it.item];
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath(); ctx.ellipse(px + 1.5, py + 3, 6, 3.4, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x + 1.5, p.y + 3, 6, 3.4, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = info.ring;
-      ctx.beginPath(); ctx.arc(px, py, 6.4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x, p.y, 6.4, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = info.color;
-      ctx.beginPath(); ctx.arc(px, py - 1, 5.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x, p.y - 1, 5.2, 0, Math.PI * 2); ctx.fill();
     }
   }
 }
