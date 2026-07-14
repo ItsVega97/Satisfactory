@@ -155,7 +155,8 @@ function shadowEllipse(tx, ty, rx, ry) {
 function drawNodes(t) {
   for (const n of state.world.nodes) {
     // si hay un minero encima, no dibujar rocas
-    if (buildingAt(n.x, n.y) && buildingAt(n.x, n.y).type === 'miner1') continue;
+    const over = buildingAt(n.x, n.y);
+    if (over && (over.type === 'miner1' || over.type === 'miner2')) continue;
     const c = NODE_TYPES[n.type].color;
     const cx = (n.x + 1) * TILE, cy = (n.y + 1) * TILE;
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -344,10 +345,10 @@ function drawBuilding(b, t) {
     const blink = Math.sin(t / 300) > 0;
     ctx.fillStyle = blink ? '#ff5544' : '#882222';
     ctx.beginPath(); ctx.arc(x + w - 14, y - ext - 13, 3, 0, Math.PI * 2); ctx.fill();
-  } else if (b.type === 'miner1' || b.type === 'portable_miner') {
+  } else if (b.type === 'miner1' || b.type === 'miner2' || b.type === 'portable_miner') {
     // taladro giratorio
-    const spin = t / (b.type === 'miner1' ? 150 : 300);
-    const rr = b.type === 'miner1' ? 12 : 8;
+    const spin = t / (b.type === 'miner2' ? 90 : b.type === 'miner1' ? 150 : 300);
+    const rr = b.type === 'portable_miner' ? 8 : 12;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(spin);
@@ -361,8 +362,41 @@ function drawBuilding(b, t) {
     ctx.fillStyle = '#2e2e2e';
     ctx.beginPath(); ctx.arc(cx, cy, rr * 0.35, 0, Math.PI * 2); ctx.fill();
     // barra de búfer
-    const cap = b.type === 'miner1' ? OUT_CAP : def.cap;
+    const cap = b.type === 'portable_miner' ? def.cap : OUT_CAP;
     drawBar(x + 3, y + h - ext - 6, w - 6, 4, b.buf / cap, '#ffd64f');
+  } else if (b.type === 'splitter') {
+    // caja con flechas de reparto
+    ctx.strokeStyle = '#ffd64f'; ctx.lineWidth = 2.5;
+    const ac = (x1, y1, x2, y2) => {
+      ctx.beginPath(); ctx.moveTo(cx + x1, cy + y1); ctx.lineTo(cx + x2, cy + y2); ctx.stroke();
+      const a = Math.atan2(y2 - y1, x2 - x1);
+      ctx.beginPath();
+      ctx.moveTo(cx + x2, cy + y2);
+      ctx.lineTo(cx + x2 - Math.cos(a - 0.5) * 4, cy + y2 - Math.sin(a - 0.5) * 4);
+      ctx.moveTo(cx + x2, cy + y2);
+      ctx.lineTo(cx + x2 - Math.cos(a + 0.5) * 4, cy + y2 - Math.sin(a + 0.5) * 4);
+      ctx.stroke();
+    };
+    ac(-9, 0, -3, 0);
+    ac(3, 0, 10, 0);
+    ac(0, -3, 0, -10);
+    ac(0, 3, 0, 10);
+    drawBar(x + 3, y + h - ext - 6, w - 6, 4, (b.queue ? b.queue.length : 0) / 6, '#ffd64f');
+  } else if (b.type === 'foundry') {
+    // dos chimeneas y crisol
+    ctx.fillStyle = '#4a3226';
+    ctx.beginPath(); ctx.roundRect(x + w - 22, y - ext + 5, 12, 12, 3); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(x + w - 38, y - ext + 5, 12, 12, 3); ctx.fill();
+    const hot2 = b.working ? (Math.sin(t / 150) + 1) / 2 : 0;
+    ctx.fillStyle = `rgb(${190 + hot2 * 65},${70 + hot2 * 90},35)`;
+    ctx.beginPath(); ctx.arc(cx - 10, cy + 4, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255,224,122,${0.35 + hot2 * 0.5})`;
+    ctx.beginPath(); ctx.arc(cx - 10, cy + 4, 5, 0, Math.PI * 2); ctx.fill();
+    if (b.working) {
+      const p2 = (t / 700) % 1;
+      ctx.fillStyle = `rgba(90,90,90,${0.5 * (1 - p2)})`;
+      ctx.beginPath(); ctx.arc(x + w - 16, y - ext - 2 - p2 * 16, 4 + p2 * 6, 0, Math.PI * 2); ctx.fill();
+    }
   } else if (b.type === 'smelter') {
     // chimenea con brasa
     ctx.fillStyle = '#5b3d2a';

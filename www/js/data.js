@@ -4,8 +4,8 @@
    ========================================================= */
 
 const TILE = 32;
-const MAP_W = 64;
-const MAP_H = 48;
+const MAP_W = 80;
+const MAP_H = 60;
 
 const BELT_SPEED = 2.0;     // tiles / segundo
 const BELT_SPACING = 0.45;  // separación mínima entre objetos en cinta
@@ -32,6 +32,14 @@ const ITEMS = {
   concrete:         { name: 'Hormigón',           color: '#c2bba9', ring: '#8f8977' },
   reinforced_plate: { name: 'Placa reforzada',    color: '#7e93ad', ring: '#54687f' },
   rotor:            { name: 'Rotor',              color: '#cd8a52', ring: '#96602f' },
+  steel_ingot:      { name: 'Lingote de acero',   color: '#79828f', ring: '#525a65' },
+  steel_beam:       { name: 'Viga de acero',      color: '#5b6673', ring: '#3d454f' },
+  steel_pipe:       { name: 'Tubo de acero',      color: '#939dab', ring: '#646d7a' },
+  stator:           { name: 'Estátor',            color: '#7592ad', ring: '#4e6880' },
+  motor:            { name: 'Motor',              color: '#d8a13f', ring: '#a3742a' },
+  modular_frame:    { name: 'Bastidor modular',   color: '#9aa5b1', ring: '#6b7580' },
+  encased_beam:     { name: 'Viga revestida',     color: '#a8a08b', ring: '#7a7362' },
+  heavy_frame:      { name: 'Bastidor pesado',    color: '#6e7885', ring: '#4b525c' },
 };
 
 /* ---------------- Recetas ----------------
@@ -47,6 +55,14 @@ const RECIPES = {
   concrete:         { name: 'Hormigón',          in: { limestone: 3 },             out: { concrete: 1 },         time: 4,  mach: 'constructor', hand: true },
   reinforced_plate: { name: 'Placa reforzada',   in: { plate: 4, screw: 8 },       out: { reinforced_plate: 1 }, time: 8,  mach: 'assembler',   hand: true },
   rotor:            { name: 'Rotor',             in: { rod: 3, screw: 10 },        out: { rotor: 1 },            time: 10, mach: 'assembler',   hand: true },
+  steel_ingot:      { name: 'Lingote de acero',  in: { iron_ore: 2, coal: 2 },     out: { steel_ingot: 2 },      time: 4,  mach: 'foundry',     hand: true },
+  steel_beam:       { name: 'Viga de acero',     in: { steel_ingot: 3 },           out: { steel_beam: 1 },       time: 4,  mach: 'constructor', hand: true },
+  steel_pipe:       { name: 'Tubo de acero',     in: { steel_ingot: 2 },           out: { steel_pipe: 1 },       time: 3,  mach: 'constructor', hand: true },
+  stator:           { name: 'Estátor',           in: { steel_pipe: 2, wire: 6 },   out: { stator: 1 },           time: 8,  mach: 'assembler',   hand: true },
+  motor:            { name: 'Motor',             in: { rotor: 1, stator: 1 },      out: { motor: 1 },            time: 8,  mach: 'assembler',   hand: true },
+  modular_frame:    { name: 'Bastidor modular',  in: { reinforced_plate: 2, rod: 6 }, out: { modular_frame: 1 }, time: 10, mach: 'assembler',   hand: true },
+  encased_beam:     { name: 'Viga revestida',    in: { steel_beam: 3, concrete: 5 }, out: { encased_beam: 1 },   time: 8,  mach: 'assembler',   hand: true },
+  heavy_frame:      { name: 'Bastidor pesado',   in: { modular_frame: 2, encased_beam: 3, screw: 20 }, out: { heavy_frame: 1 }, time: 15, mach: 'assembler', hand: true },
 };
 
 /* ---------------- Edificios ----------------
@@ -70,6 +86,12 @@ const BUILDINGS = {
     desc: 'Extrae 60/min de un yacimiento y lo saca por cintas. Requiere 5 MW y conexión a la red eléctrica.',
     buildable: true,
   },
+  miner2: {
+    name: 'Minero Mk.2', w: 2, h: 2, cost: { steel_beam: 8, steel_pipe: 4, plate: 10 }, power: -12,
+    color: '#5f7185', roof: '#75899f', rate: 2.0,
+    desc: 'Extrae 120/min de un yacimiento. Requiere 12 MW y conexión a la red eléctrica.',
+    buildable: true,
+  },
   smelter: {
     name: 'Fundidora', w: 2, h: 2, cost: { rod: 5, wire: 8 }, power: -4,
     color: '#b06a3c', roof: '#cd8451',
@@ -90,8 +112,20 @@ const BUILDINGS = {
   },
   conveyor: {
     name: 'Cinta transportadora', w: 1, h: 1, cost: { plate: 1 }, power: 0,
-    color: '#555a63', roof: '#555a63', desc: 'Transporta objetos entre edificios. 1 placa por tramo.',
+    color: '#555a63', roof: '#555a63', desc: 'Transporta objetos entre edificios. Cuesta 1 placa de hierro por tramo.',
     buildable: true, isBelt: true,
+  },
+  splitter: {
+    name: 'Separador', w: 1, h: 1, cost: { plate: 6, wire: 4 }, power: 0,
+    color: '#6b7280', roof: '#828a99',
+    desc: 'Reparte lo que entra por una cinta entre hasta 3 cintas de salida, por turnos. No necesita electricidad.',
+    buildable: true,
+  },
+  foundry: {
+    name: 'Fundición de acero', w: 3, h: 2, cost: { plate: 15, rod: 10, concrete: 10 }, power: -16,
+    color: '#7a4b33', roof: '#935c40',
+    desc: 'Funde mineral de hierro y carbón en lingotes de acero. Requiere 16 MW y conexión a la red eléctrica.',
+    buildable: true,
   },
   storage: {
     name: 'Contenedor', w: 2, h: 2, cost: { plate: 10, rod: 5 }, power: 0,
@@ -122,8 +156,9 @@ const BUILDINGS = {
 /* Recetas disponibles por máquina */
 const MACH_RECIPES = {
   smelter: ['iron_ingot', 'copper_ingot'],
-  constructor: ['plate', 'rod', 'screw', 'wire', 'cable', 'concrete'],
-  assembler: ['reinforced_plate', 'rotor'],
+  foundry: ['steel_ingot'],
+  constructor: ['plate', 'rod', 'screw', 'wire', 'cable', 'concrete', 'steel_beam', 'steel_pipe'],
+  assembler: ['reinforced_plate', 'rotor', 'stator', 'motor', 'modular_frame', 'encased_beam', 'heavy_frame'],
 };
 
 /* ---------------- Hitos (Hitos del HUB) ---------------- */
@@ -138,7 +173,7 @@ const MILESTONES = [
     name: 'Logística',
     desc: 'Funde lingotes de hierro para desbloquear la logística básica.',
     req: { iron_ingot: 20 },
-    unlocks: { buildings: ['constructor', 'conveyor', 'storage'], recipes: ['plate', 'screw'] },
+    unlocks: { buildings: ['constructor', 'conveyor', 'splitter', 'storage'], recipes: ['plate', 'screw'] },
   },
   {
     name: 'Automatización',
@@ -160,8 +195,32 @@ const MILESTONES = [
   },
   {
     name: 'Ascensor Espacial: Fase 1',
-    desc: 'Entrega las piezas finales del proyecto. ¡La misión de FICSIT te espera!',
+    desc: 'Primera entrega del proyecto FICSIT. Desbloquea la era del acero.',
     req: { rotor: 10, reinforced_plate: 10, cable: 50 },
+    unlocks: { buildings: ['foundry'], recipes: ['steel_ingot', 'steel_beam', 'steel_pipe'] },
+  },
+  {
+    name: 'Acero',
+    desc: 'Lleva carbón por cinta hasta las fundiciones y produce acero en serie.',
+    req: { steel_beam: 30, steel_pipe: 30 },
+    unlocks: { buildings: ['miner2'], recipes: ['stator', 'motor'] },
+  },
+  {
+    name: 'Motores',
+    desc: 'Combina rotores y estátores para fabricar motores industriales.',
+    req: { stator: 20, motor: 10 },
+    unlocks: { recipes: ['modular_frame', 'encased_beam'] },
+  },
+  {
+    name: 'Estructuras industriales',
+    desc: 'Bastidores modulares y vigas revestidas para la fase final.',
+    req: { modular_frame: 15, encased_beam: 20 },
+    unlocks: { recipes: ['heavy_frame'] },
+  },
+  {
+    name: 'Ascensor Espacial: Fase 2',
+    desc: 'La gran entrega final. ¡Termina el proyecto del Ascensor Espacial!',
+    req: { heavy_frame: 5, motor: 20, cable: 100 },
     unlocks: { victory: true },
   },
 ];

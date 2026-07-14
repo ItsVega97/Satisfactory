@@ -71,8 +71,8 @@ function boot() {
   const loaded = loadGame();
   if (!loaded) newGame();
 
-  cam.x = 20 * TILE;
-  cam.y = 23 * TILE;
+  cam.x = (state.world.hubX + 2) * TILE;
+  cam.y = (state.world.hubY + 1.5) * TILE;
   cam.z = window.innerWidth < 700 ? 0.85 : 1.1;
 
   initUI();

@@ -23,13 +23,14 @@ function setMode(m) {
   document.querySelectorAll('#modebar button').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === m);
   });
-  document.getElementById('palette').classList.toggle('hidden', m !== 'build');
+  document.getElementById('palette').classList.toggle('hidden', m !== 'build' && m !== 'belt');
   updateConfirmBar();
   if (m === 'build') rebuildPalette();
+  if (m === 'belt') rebuildBeltPalette();
   const tips = {
     select: 'Toca yacimientos para picar, edificios para gestionarlos. Arrastra para moverte.',
     build: 'Elige un edificio abajo y toca el mapa para situarlo. Confirma con el botón Construir.',
-    belt: 'Arrastra el dedo por el mapa para trazar cintas.',
+    belt: 'Arrastra el dedo para trazar cintas, o elige el Separador abajo para repartir una cinta en tres.',
     demolish: 'Toca edificios, cintas o rocas para retirarlos (se devuelven los materiales).',
   };
   toast(tips[m]);
@@ -62,7 +63,7 @@ function onDown(e) {
     return;
   }
 
-  if (input.mode === 'belt' && input.pointers.size === 1) {
+  if (input.mode === 'belt' && ui.beltTool === 'conveyor' && input.pointers.size === 1) {
     const tPos = screenToTile(e.clientX, e.clientY);
     if (inBounds(tPos.x, tPos.y)) input.beltPath = [tPos];
   }
@@ -170,6 +171,13 @@ function handleTap(sx, sy) {
       ui.ghost.y = tPos.y - Math.floor((def.h - 1) / 2);
       updateConfirmBar();
     }
+    return;
+  }
+
+  if (input.mode === 'belt' && ui.beltTool === 'splitter') {
+    if (!state.unlockedB.includes('splitter')) { toast('El Separador se desbloquea en el hito "Logística"'); return; }
+    ui.ghost = { type: 'splitter', x: tPos.x, y: tPos.y };
+    updateConfirmBar();
     return;
   }
 

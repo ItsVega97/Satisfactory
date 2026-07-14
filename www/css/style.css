@@ -293,3 +293,41 @@ button.stat { cursor: pointer; }
 }
 .v-card h1 { font-size: 24px; color: #ffd64f; }
 #vStats p { margin: 3px 0; font-size: 14px; }
+
+/* ---------- Lista de misiones y materiales (HUB) ---------- */
+.ms-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.ms-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  font-size: 12.5px;
+}
+.ms-row.done { color: #a5d16e; }
+.ms-row.now { border: 1px solid #ffd64f; color: #ffe9a8; background: rgba(230,150,40,0.12); }
+.ms-row.todo { color: #8d948a; }
+.ms-mark {
+  width: 20px; height: 20px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.1); border-radius: 50%;
+  font-size: 11px; font-weight: 700;
+}
+.ms-row span:nth-child(2) { flex: 1; }
+.ms-state { font-size: 10.5px; opacity: 0.8; }
+
+.mat-head, .mat-row {
+  display: grid;
+  grid-template-columns: 26px 1fr 52px 52px 52px;
+  gap: 6px; align-items: center;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.mat-head {
+  font-size: 10.5px; color: #ffd64f; font-weight: 700;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+  text-align: right;
+}
+.mat-head span:nth-child(2) { text-align: left; }
+.mat-row { border-bottom: 1px solid rgba(255,255,255,0.06); }
+.mat-row span { text-align: right; font-weight: 600; }
+.mat-row .mat-name { text-align: left; font-weight: 400; }
+.mat-row .mat-name small { display: block; font-size: 10px; }

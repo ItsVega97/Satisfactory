@@ -48,7 +48,7 @@ function drawItemShape(g, id, cx, cy, s) {
       _rock(g, s * 0.42, s * 0.32, s * 0.42, c, d);
       _rock(g, 0.02 * s, -s * 0.15, s * 0.66, c, d);
       break;
-    case 'iron_ingot': case 'copper_ingot':
+    case 'iron_ingot': case 'copper_ingot': case 'steel_ingot':
       g.fillStyle = d;
       _poly(g, [[-s, 0], [s, 0], [s * 0.72, s * 0.55], [-s * 0.72, s * 0.55]]);
       g.fillStyle = c;
@@ -128,6 +128,67 @@ function drawItemShape(g, id, cx, cy, s) {
       g.strokeStyle = d; g.lineWidth = s * 0.12;
       g.beginPath(); g.moveTo(0, s * 0.7); g.lineTo(0, -s * 0.6); g.stroke();
       break;
+    case 'steel_beam':
+      // viga en I
+      g.fillStyle = d;
+      _rr(g, -s * 0.75, -s * 0.65, s * 1.5, s * 0.32, s * 0.06);
+      _rr(g, -s * 0.75, s * 0.33, s * 1.5, s * 0.32, s * 0.06);
+      _rr(g, -s * 0.18, -s * 0.4, s * 0.36, s * 0.8, s * 0.05);
+      g.fillStyle = c;
+      _rr(g, -s * 0.65, -s * 0.58, s * 1.3, s * 0.16, s * 0.05);
+      _rr(g, -s * 0.65, s * 0.4, s * 1.3, s * 0.16, s * 0.05);
+      break;
+    case 'steel_pipe':
+      // sección de tubo
+      g.strokeStyle = d; g.lineWidth = s * 0.42;
+      g.beginPath(); g.arc(0, 0, s * 0.55, 0, 7); g.stroke();
+      g.strokeStyle = c; g.lineWidth = s * 0.22;
+      g.beginPath(); g.arc(0, 0, s * 0.55, 0, 7); g.stroke();
+      g.fillStyle = 'rgba(0,0,0,0.35)';
+      g.beginPath(); g.arc(0, 0, s * 0.3, 0, 7); g.fill();
+      break;
+    case 'stator':
+      // anillo con bobinas
+      g.strokeStyle = d; g.lineWidth = s * 0.34;
+      g.beginPath(); g.arc(0, 0, s * 0.6, 0, 7); g.stroke();
+      g.fillStyle = c;
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3;
+        g.beginPath(); g.arc(Math.cos(a) * s * 0.6, Math.sin(a) * s * 0.6, s * 0.16, 0, 7); g.fill();
+      }
+      break;
+    case 'motor':
+      // cilindro con eje
+      g.fillStyle = d; _rr(g, -s * 0.7, -s * 0.45, s * 1.15, s * 0.9, s * 0.18);
+      g.fillStyle = c; _rr(g, -s * 0.6, -s * 0.34, s * 0.95, s * 0.3, s * 0.1);
+      g.fillStyle = '#9aa3ad';
+      _rr(g, s * 0.45, -s * 0.1, s * 0.35, s * 0.2, s * 0.08);
+      g.fillStyle = d;
+      g.beginPath(); g.arc(s * 0.8, 0, s * 0.12, 0, 7); g.fill();
+      break;
+    case 'modular_frame':
+      // marco con cruceta
+      g.strokeStyle = c; g.lineWidth = s * 0.22;
+      g.strokeRect(-s * 0.6, -s * 0.6, s * 1.2, s * 1.2);
+      g.strokeStyle = d; g.lineWidth = s * 0.14;
+      g.beginPath(); g.moveTo(-s * 0.6, -s * 0.6); g.lineTo(s * 0.6, s * 0.6); g.stroke();
+      g.beginPath(); g.moveTo(s * 0.6, -s * 0.6); g.lineTo(-s * 0.6, s * 0.6); g.stroke();
+      break;
+    case 'encased_beam':
+      // viga dentro de hormigón
+      g.fillStyle = '#c2bba9'; _rr(g, -s * 0.75, -s * 0.55, s * 1.5, s * 1.1, s * 0.12);
+      g.fillStyle = d; _rr(g, -s * 0.55, -s * 0.18, s * 1.1, s * 0.36, s * 0.06);
+      g.fillStyle = c; _rr(g, -s * 0.55, -s * 0.1, s * 1.1, s * 0.12, s * 0.04);
+      break;
+    case 'heavy_frame':
+      // marco doble reforzado
+      g.strokeStyle = d; g.lineWidth = s * 0.3;
+      g.strokeRect(-s * 0.65, -s * 0.65, s * 1.3, s * 1.3);
+      g.strokeStyle = c; g.lineWidth = s * 0.14;
+      g.strokeRect(-s * 0.38, -s * 0.38, s * 0.76, s * 0.76);
+      g.beginPath(); g.moveTo(-s * 0.65, 0); g.lineTo(s * 0.65, 0); g.stroke();
+      g.beginPath(); g.moveTo(0, -s * 0.65); g.lineTo(0, s * 0.65); g.stroke();
+      break;
     default:
       g.fillStyle = c; g.beginPath(); g.arc(0, 0, s * 0.7, 0, 7); g.fill();
   }
@@ -178,6 +239,27 @@ function drawBuildingIcon(g, type, S) {
     g.fillStyle = '#3a3d33'; _rr(g, cx - S * 0.12, S * 0.84, S * 0.24, S * 0.08, S * 0.03);
     return;
   }
+  if (type === 'splitter') {
+    // caja con 1 entrada y 3 salidas
+    g.fillStyle = '#3d4148'; _rr(g, S * 0.3, S * 0.3, S * 0.4, S * 0.4, S * 0.06);
+    g.fillStyle = '#828a99'; _rr(g, S * 0.34, S * 0.26, S * 0.32, S * 0.4, S * 0.05);
+    g.strokeStyle = '#ffd64f'; g.lineWidth = S * 0.05;
+    const arrow = (x1, y1, x2, y2) => {
+      g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+      const a = Math.atan2(y2 - y1, x2 - x1);
+      g.beginPath();
+      g.moveTo(x2, y2);
+      g.lineTo(x2 - Math.cos(a - 0.5) * S * 0.09, y2 - Math.sin(a - 0.5) * S * 0.09);
+      g.moveTo(x2, y2);
+      g.lineTo(x2 - Math.cos(a + 0.5) * S * 0.09, y2 - Math.sin(a + 0.5) * S * 0.09);
+      g.stroke();
+    };
+    arrow(S * 0.08, S * 0.5, S * 0.28, S * 0.5);   // entrada
+    arrow(S * 0.72, S * 0.5, S * 0.92, S * 0.5);   // salida derecha
+    arrow(S * 0.5, S * 0.26, S * 0.5, S * 0.08);   // salida arriba
+    arrow(S * 0.5, S * 0.7, S * 0.5, S * 0.92);    // salida abajo
+    return;
+  }
   if (type === 'conveyor') {
     g.fillStyle = '#3d4148'; _rr(g, S * 0.08, S * 0.3, S * 0.84, S * 0.4, S * 0.08);
     g.fillStyle = '#585e68'; _rr(g, S * 0.13, S * 0.36, S * 0.74, S * 0.28, S * 0.05);
@@ -199,7 +281,7 @@ function drawBuildingIcon(g, type, S) {
   _rr(g, m + S * 0.03, S * 0.21, S - 2 * m - S * 0.06, S * 0.08, S * 0.04);
 
   const cy = S * 0.5;
-  if (type === 'portable_miner' || type === 'miner1') {
+  if (type === 'portable_miner' || type === 'miner1' || type === 'miner2') {
     g.save(); g.translate(cx, cy);
     g.fillStyle = shade(def.color, -0.45);
     for (let i = 0; i < 3; i++) {
@@ -208,6 +290,12 @@ function drawBuildingIcon(g, type, S) {
     }
     g.restore();
     g.fillStyle = '#2e2e2e'; g.beginPath(); g.arc(cx, cy, S * 0.08, 0, 7); g.fill();
+  } else if (type === 'foundry') {
+    g.fillStyle = '#4a3226';
+    _rr(g, S * 0.58, S * 0.2, S * 0.14, S * 0.16, S * 0.03);
+    _rr(g, S * 0.76, S * 0.2, S * 0.14, S * 0.16, S * 0.03);
+    g.fillStyle = '#ff9a3c'; g.beginPath(); g.arc(cx - S * 0.12, cy + S * 0.05, S * 0.14, 0, 7); g.fill();
+    g.fillStyle = '#ffe07a'; g.beginPath(); g.arc(cx - S * 0.12, cy + S * 0.05, S * 0.07, 0, 7); g.fill();
   } else if (type === 'smelter') {
     g.fillStyle = '#5b3d2a'; _rr(g, S * 0.62, S * 0.22, S * 0.18, S * 0.18, S * 0.04);
     g.fillStyle = '#e8853c'; g.beginPath(); g.arc(cx - S * 0.08, cy + S * 0.05, S * 0.13, 0, 7); g.fill();

@@ -6,6 +6,7 @@ const ui = {
   selected: null,
   ghost: null,
   buildType: null,
+  beltTool: 'conveyor',   // conveyor | splitter
   sheetKind: null,   // 'hub' | 'building' | 'inventory' | 'menu' | null
   sheetBuilding: null,
   hubTab: 'hitos',
@@ -60,7 +61,7 @@ function updateTopbar() {
 function rebuildPalette() {
   const pal = $('palette');
   pal.innerHTML = '';
-  const order = ['portable_miner', 'miner1', 'smelter', 'constructor', 'assembler', 'storage', 'power_pole', 'biomass_burner', 'coal_generator'];
+  const order = ['portable_miner', 'miner1', 'miner2', 'smelter', 'foundry', 'constructor', 'assembler', 'storage', 'power_pole', 'biomass_burner', 'coal_generator'];
   for (const id of order) {
     const def = BUILDINGS[id];
     const unlocked = state.unlockedB.includes(id);
@@ -88,6 +89,39 @@ function rebuildPalette() {
 
 function updateConfirmBar() {
   $('confirmBar').classList.toggle('hidden', !ui.ghost);
+}
+
+/* ---------------- Submenú de cintas (cinta / separador) ---------------- */
+function rebuildBeltPalette() {
+  const pal = $('palette');
+  pal.innerHTML = '';
+  const tools = [
+    { id: 'conveyor', type: 'conveyor', costTxt: fmtCost(BUILDINGS.conveyor.cost) + ' por tramo' },
+    { id: 'splitter', type: 'splitter', costTxt: fmtCost(BUILDINGS.splitter.cost) },
+  ];
+  for (const t of tools) {
+    const def = BUILDINGS[t.type];
+    const unlocked = state.unlockedB.includes(t.type);
+    const afford = canAfford(def.cost);
+    const div = document.createElement('button');
+    div.className = 'pal-item' + (unlocked ? '' : ' locked') + (ui.beltTool === t.id ? ' sel' : '');
+    div.innerHTML = `<img class="pal-img" src="${buildingIconURL(t.type)}" alt="">
+      <span class="pal-name">${def.name}</span>
+      <span class="pal-cost ${afford || !unlocked ? '' : 'bad'}">${unlocked ? t.costTxt : 'Bloqueado'}</span>`;
+    div.addEventListener('click', () => {
+      if (!unlocked) {
+        const msIdx = MILESTONES.findIndex(m => (m.unlocks.buildings || []).includes(t.type));
+        toast(`Se desbloquea con el hito: "${MILESTONES[msIdx] ? MILESTONES[msIdx].name : '?'}"`);
+        return;
+      }
+      ui.beltTool = t.id;
+      ui.ghost = null;
+      updateConfirmBar();
+      rebuildBeltPalette();
+      toast(def.desc);
+    });
+    pal.appendChild(div);
+  }
 }
 
 /* ---------------- Hoja inferior (paneles) ---------------- */
@@ -121,15 +155,16 @@ function renderHubSheet() {
   const body = $('sheetBody');
   const ms = currentMilestone();
   let html = `<div class="tabs">
-    <button class="tab ${ui.hubTab === 'hitos' ? 'on' : ''}" data-tab="hitos">Hitos</button>
-    <button class="tab ${ui.hubTab === 'banco' ? 'on' : ''}" data-tab="banco">Banco de artesanía</button>
+    <button class="tab ${ui.hubTab === 'hitos' ? 'on' : ''}" data-tab="hitos">Misiones</button>
+    <button class="tab ${ui.hubTab === 'materiales' ? 'on' : ''}" data-tab="materiales">Materiales</button>
+    <button class="tab ${ui.hubTab === 'banco' ? 'on' : ''}" data-tab="banco">Banco</button>
   </div>`;
 
   if (ui.hubTab === 'hitos') {
     if (!ms) {
       html += `<p class="ok">¡Has completado todos los hitos! Sigue ampliando tu fábrica.</p>`;
     } else {
-      html += `<h3>Hito ${state.milestoneIndex + 1}/${MILESTONES.length}: ${ms.name}</h3>
+      html += `<h3>Misión ${state.milestoneIndex + 1}/${MILESTONES.length}: ${ms.name}</h3>
         <p class="dim">${ms.desc}</p>`;
       for (const item in ms.req) {
         const done = state.msProgress[item] || 0;
@@ -150,6 +185,47 @@ function renderHubSheet() {
         ...(u.victory ? ['¡VICTORIA!'] : []),
       ];
       if (unlockTxt.length) html += `<p class="dim">Desbloquea: ${unlockTxt.join(', ')}</p>`;
+    }
+    // lista completa de misiones con su estado
+    html += `<h4>Lista de misiones</h4><div class="ms-list">`;
+    MILESTONES.forEach((m, i) => {
+      const cls = i < state.milestoneIndex ? 'done' : i === state.milestoneIndex ? 'now' : 'todo';
+      const mark = i < state.milestoneIndex ? '✓' : i === state.milestoneIndex ? '›' : (i + 1);
+      html += `<div class="ms-row ${cls}"><span class="ms-mark">${mark}</span>
+        <span>${m.name}</span>
+        <span class="ms-state">${cls === 'done' ? 'Completada' : cls === 'now' ? 'En curso' : 'Pendiente'}</span></div>`;
+    });
+    html += `</div>`;
+  } else if (ui.hubTab === 'materiales') {
+    // resumen de materiales: HUB (inventario), contenedores y mineros
+    const rows = {};
+    const add = (item, col, n) => {
+      if (n <= 0) return;
+      if (!rows[item]) rows[item] = { hub: 0, alm: 0, min: 0 };
+      rows[item][col] += n;
+    };
+    for (const k in state.inventory) add(k, 'hub', state.inventory[k]);
+    for (const b of state.buildings) {
+      if (b.type === 'storage') for (const k in b.store) add(k, 'alm', b.store[k]);
+      if ((b.type === 'miner1' || b.type === 'miner2' || b.type === 'portable_miner') && b.nodeType) {
+        add(NODE_TYPES[b.nodeType].item, 'min', Math.floor(b.buf));
+      }
+    }
+    const keys = Object.keys(ITEMS).filter(k => rows[k]);
+    if (!keys.length) {
+      html += `<p class="dim">Aún no hay materiales almacenados. ¡Pica algún yacimiento!</p>`;
+    } else {
+      html += `<p class="dim">Materiales en el HUB (inventario), en contenedores y en los búferes de los mineros.</p>
+        <div class="mat-head"><span></span><span>Material</span><span>HUB</span><span>Almacén</span><span>Minas</span></div>`;
+      for (const k of keys) {
+        const r = rows[k];
+        const total = r.hub + r.alm + r.min;
+        html += `<div class="mat-row">
+          <img class="icico" src="${itemIconURL(k)}" alt="">
+          <span class="mat-name">${ITEMS[k].name}<small class="dim"> · total ${total}</small></span>
+          <span>${r.hub || '—'}</span><span>${r.alm || '—'}</span><span>${r.min || '—'}</span>
+        </div>`;
+      }
     }
   } else {
     html += `<p class="dim">Fabrica objetos a mano con los recursos del inventario.</p>`;
@@ -340,7 +416,9 @@ function renderMenuSheet() {
     if (confirm('¿Empezar una nueva partida? Se perderá el progreso.')) {
       resetGame();
       groundCanvas = null;
-      cam.x = 20 * TILE; cam.y = 23 * TILE; cam.z = 1;
+      cam.x = (state.world.hubX + 2) * TILE;
+      cam.y = (state.world.hubY + 1.5) * TILE;
+      cam.z = 1;
       closeSheet();
       toast('¡Nueva partida! Bienvenido, ingeniero de FICSIT.');
     }
@@ -350,7 +428,7 @@ function renderMenuSheet() {
 /* ---------------- Pistas (tutorial contextual) ---------------- */
 const HINTS = [
   { id: 'mine', cond: () => state.milestoneIndex === 0 && state.stats.mined < 10,
-    text: 'Toca un yacimiento (rocas grises al este del HUB) para picar mineral de hierro.' },
+    text: 'Toca un yacimiento de hierro (rocas grises cerca del HUB) para picar mineral.' },
   { id: 'portable', cond: () => state.milestoneIndex === 0 && state.stats.mined >= 10 && !state.buildings.some(b => b.type === 'portable_miner'),
     text: 'Abre Construir y coloca un Taladro portátil sobre un yacimiento (cuesta 5 de mineral de hierro).' },
   { id: 'deliver0', cond: () => state.milestoneIndex === 0 && invCount('iron_ore') + (state.msProgress.iron_ore || 0) >= 30,
@@ -368,7 +446,7 @@ const HINTS = [
   { id: 'fuel', cond: () => state.buildings.some(b => BUILDINGS[b.type].fuelItem && b.fuel <= 0 && b.burnLeft <= 0),
     text: 'Un generador no tiene combustible. Tócalo y cárgalo.' },
   { id: 'coal', cond: () => state.milestoneIndex >= 3 && !state.buildings.some(b => b.type === 'coal_generator'),
-    text: 'El Generador de carbón (75 MW) se alimenta por cinta desde los yacimientos de carbón, al este.' },
+    text: 'El Generador de carbón (75 MW) se alimenta por cinta desde los yacimientos de carbón, en la periferia del mapa.' },
 ];
 
 function updateHint() {

@@ -2,7 +2,7 @@
    Factoría 2D — Lógica del juego (estado, simulación, construcción)
    ========================================================= */
 
-const SAVE_KEY = 'factoria2d_save_v2';
+const SAVE_KEY = 'factoria2d_save_v3';
 let state = null;
 let powerEdges = [];   // conexiones eléctricas activas [{a,b}] (para dibujar cables)
 
@@ -16,8 +16,9 @@ function opposite(d) { return { E: 'W', W: 'E', N: 'S', S: 'N' }[d]; }
 
 /* ---------------- Nueva partida ---------------- */
 function newGame() {
+  const seed = (Math.random() * 2 ** 31) | 0;
   state = {
-    version: 2,
+    version: 3,
     time: 0,
     playTime: 0,
     inventory: {},
@@ -33,10 +34,10 @@ function newGame() {
     victory: false,
     victoryShown: false,
     stats: { mined: 0, crafted: 0, built: 0, produced: 0, delivered: 0 },
-    world: genWorld(),
+    world: genWorld(seed),
   };
-  // El HUB se coloca fijo
-  const hub = mkBuilding('hub', 18, 22);
+  // El HUB se coloca en el centro del mapa generado
+  const hub = mkBuilding('hub', state.world.hubX, state.world.hubY);
   state.buildings.push(hub);
   occupy(hub);
 }
@@ -48,8 +49,9 @@ function mkBuilding(type, x, y) {
     recipe: null, inBuf: {}, outBuf: {}, progress: 0, working: false,
   };
   if (type === 'storage') b.store = {};
+  if (type === 'splitter') { b.queue = []; b.rr = 0; }
   if (def.fuelItem) { b.fuel = 0; b.burnLeft = 0; }
-  if (type === 'miner1' || type === 'portable_miner') {
+  if (type === 'miner1' || type === 'miner2' || type === 'portable_miner') {
     const n = nodeAt(x, y);
     b.nodeType = n ? n.type : null;
     b.buf = 0;
@@ -102,12 +104,13 @@ function tileFree(x, y) {
 
 function canPlaceBuilding(type, x, y) {
   const def = BUILDINGS[type];
-  const onNode = type === 'miner1' || type === 'portable_miner';
+  const isMiner = type === 'miner1' || type === 'miner2';
+  const onNode = isMiner || type === 'portable_miner';
   let node = null;
   if (onNode) {
     node = nodeAt(x, y);
     if (!node) return { ok: false, why: 'Debe colocarse sobre un yacimiento' };
-    if (type === 'miner1') { x = node.x; y = node.y; }
+    if (isMiner) { x = node.x; y = node.y; }
   }
   for (let dy = 0; dy < def.h; dy++) {
     for (let dx = 0; dx < def.w; dx++) {
@@ -120,7 +123,7 @@ function canPlaceBuilding(type, x, y) {
       const n = nodeAt(tx, ty);
       if (onNode) {
         if (!n || n !== node) {
-          if (type === 'miner1') return { ok: false, why: 'Debe cubrir el yacimiento completo' };
+          if (isMiner) return { ok: false, why: 'Debe cubrir el yacimiento completo' };
           if (type === 'portable_miner' && !n) return { ok: false, why: 'Debe colocarse sobre un yacimiento' };
         }
       } else if (n) {
@@ -157,6 +160,7 @@ function demolishBuilding(b) {
   for (const k in b.inBuf) invAdd(k, b.inBuf[k]);
   for (const k in b.outBuf) invAdd(k, b.outBuf[k]);
   if (b.store) for (const k in b.store) invAdd(k, b.store[k]);
+  if (b.queue) for (const it of b.queue) invAdd(it, 1);
   if (b.fuel) invAdd(def.fuelItem, b.fuel);
   if (b.buf && b.nodeType) invAdd(NODE_TYPES[b.nodeType].item, Math.floor(b.buf));
   unoccupy(b);
@@ -217,6 +221,7 @@ function acceptsItem(b, item) {
     let total = 0; for (const k in b.store) total += b.store[k];
     return total < def.cap;
   }
+  if (b.type === 'splitter') return b.queue.length < 6;
   if (def.fuelItem) return item === def.fuelItem && b.fuel < 50;
   if (b.recipe) {
     const r = RECIPES[b.recipe];
@@ -230,6 +235,7 @@ function acceptsItem(b, item) {
 function insertItem(b, item) {
   if (b.type === 'hub') { invAdd(item, 1); return; }
   if (b.type === 'storage') { b.store[item] = (b.store[item] || 0) + 1; return; }
+  if (b.type === 'splitter') { b.queue.push(item); return; }
   const def = BUILDINGS[b.type];
   if (def.fuelItem) { b.fuel++; return; }
   b.inBuf[item] = (b.inBuf[item] || 0) + 1;
@@ -368,7 +374,7 @@ function computePower() {
 }
 
 function machineWants(b) {
-  if (b.type === 'miner1') return b.buf < OUT_CAP;
+  if (b.type === 'miner1' || b.type === 'miner2') return b.buf < OUT_CAP;
   if (b.working) return true;
   if (!b.recipe) return false;
   const r = RECIPES[b.recipe];
@@ -447,7 +453,7 @@ function tick(dt) {
       continue;
     }
 
-    if (b.type === 'miner1') {
+    if (b.type === 'miner1' || b.type === 'miner2') {
       if (b._pw && b.buf < OUT_CAP) {
         b.progress += def.rate * dt;
         while (b.progress >= 1 && b.buf < OUT_CAP) { b.progress -= 1; b.buf++; state.stats.produced++; }
@@ -490,6 +496,22 @@ function tick(dt) {
         }
         return null;
       });
+      continue;
+    }
+
+    if (b.type === 'splitter') {
+      // reparto por turnos entre las cintas de salida
+      if (b.queue.length) {
+        const outs = outputBelts(b);
+        for (let k = 0; k < outs.length && b.queue.length; k++) {
+          const belt = outs[(b.rr + k) % outs.length];
+          if (beltHasSpaceAtStart(belt)) {
+            belt.items.push({ item: b.queue.shift(), pos: 0 });
+            b.rr = (b.rr + k + 1) % Math.max(1, outs.length);
+            break;
+          }
+        }
+      }
       continue;
     }
 
@@ -643,7 +665,7 @@ function loadGame() {
     const s = localStorage.getItem(SAVE_KEY);
     if (!s) return false;
     const data = JSON.parse(s);
-    if (!data || data.version !== 2) return false;
+    if (!data || data.version !== 3) return false;
     state = data;
     return true;
   } catch (e) { return false; }

@@ -1,6 +1,7 @@
 /* =========================================================
-   Factoría 2D — Generación del mundo
-   Mapa fijo (semilla constante) con yacimientos, agua y vegetación.
+   Factoría 2D — Generación procedural del mundo
+   Cada partida usa una semilla aleatoria: lagos, yacimientos en
+   anillos de distancia alrededor del HUB y vegetación.
    ========================================================= */
 
 function mulberry32(a) {
@@ -14,25 +15,35 @@ function mulberry32(a) {
 
 function key(x, y) { return x + ',' + y; }
 
-function genWorld() {
-  const rng = mulberry32(20260714);
+function genWorld(seed) {
+  const rng = mulberry32(seed);
+  const hubX = Math.floor(MAP_W / 2) - 2;
+  const hubY = Math.floor(MAP_H / 2) - 2;
+  const hcx = hubX + 2, hcy = hubY + 1.5;   // centro del HUB
+
   const world = {
-    water: [],   // {x,y,r} círculos de agua (en tiles)
-    nodes: [],   // {id,x,y,type} yacimientos 2x2
-    bushes: [],  // {x,y,charges,timer}
-    trees: [],   // {x,y,hp}
-    rocks: [],   // {x,y,s}
-    waterTiles: {}, // key -> true
-    nodeTiles: {},  // key -> node index
+    seed, hubX, hubY,
+    water: [],
+    nodes: [],
+    bushes: [],
+    trees: [],
+    rocks: [],
+    waterTiles: {},
+    nodeTiles: {},
   };
 
-  // Lagos decorativos (bloquean construcción)
-  world.water = [
-    { x: 54, y: 11, r: 4.2 },
-    { x: 6.5, y: 7, r: 3.2 },
-    { x: 59, y: 40, r: 3.5 },
-    { x: 3, y: 30, r: 2.6 },
-  ];
+  const inHubZone = (x, y) => x >= hubX - 4 && x <= hubX + 8 && y >= hubY - 4 && y <= hubY + 7;
+
+  /* ---- Lagos ---- */
+  let tries = 0;
+  while (world.water.length < 5 && tries++ < 400) {
+    const x = 5 + rng() * (MAP_W - 10);
+    const y = 5 + rng() * (MAP_H - 10);
+    const r = 2.4 + rng() * 2.2;
+    if (Math.hypot(x - hcx, y - hcy) < r + 11) continue;
+    if (world.water.some(w => Math.hypot(w.x - x, w.y - y) < w.r + r + 4)) continue;
+    world.water.push({ x, y, r });
+  }
   for (let y = 0; y < MAP_H; y++) {
     for (let x = 0; x < MAP_W; x++) {
       for (const w of world.water) {
@@ -42,42 +53,86 @@ function genWorld() {
     }
   }
 
-  // Yacimientos (2x2). El HUB estará en (18,22) 4x3.
-  const nodeDefs = [
-    // hierro: cerca del inicio
-    ['iron', 25, 20], ['iron', 28, 23], ['iron', 24, 27],
-    ['iron', 14, 31], ['iron', 11, 28],
-    ['iron', 40, 14], ['iron', 43, 16],
-    // cobre
-    ['copper', 12, 16], ['copper', 15, 14],
-    ['copper', 34, 33], ['copper', 37, 35],
-    // caliza
-    ['limestone', 29, 30], ['limestone', 31, 27],
-    ['limestone', 9, 38], ['limestone', 12, 40],
-    // carbón: más lejos
-    ['coal', 44, 26], ['coal', 47, 28], ['coal', 45, 31],
-    ['coal', 50, 40], ['coal', 53, 38],
-  ];
-  nodeDefs.forEach((nd, i) => {
-    const node = { id: i, type: nd[0], x: nd[1], y: nd[2] };
+  /* ---- Yacimientos (2x2) en anillos de distancia ---- */
+  const nodeFits = (x, y) => {
+    if (x < 2 || y < 2 || x >= MAP_W - 4 || y >= MAP_H - 4) return false;
+    for (let dy = -1; dy < 3; dy++) {
+      for (let dx = -1; dx < 3; dx++) {
+        const tx = x + dx, ty = y + dy;
+        if (world.waterTiles[key(tx, ty)]) return false;
+        if (world.nodeTiles[key(tx, ty)] !== undefined) return false;
+        if (inHubZone(tx, ty)) return false;
+      }
+    }
+    return true;
+  };
+  const commitNode = (type, x, y) => {
+    const node = { id: world.nodes.length, type, x, y };
     world.nodes.push(node);
     for (let dy = 0; dy < 2; dy++)
       for (let dx = 0; dx < 2; dx++)
-        world.nodeTiles[key(node.x + dx, node.y + dy)] = i;
-  });
+        world.nodeTiles[key(x + dx, y + dy)] = node.id;
+  };
 
+  /* Coloca un grupo de `count` nodos a distancia [minD,maxD] del HUB */
+  const placeCluster = (type, minD, maxD, count) => {
+    for (let t = 0; t < 400; t++) {
+      const a = rng() * Math.PI * 2;
+      const d = minD + rng() * (maxD - minD);
+      const cx = Math.round(hcx + Math.cos(a) * d);
+      const cy = Math.round(hcy + Math.sin(a) * d * 0.75);
+      const spots = [];
+      // primer nodo en el centro del grupo, resto alrededor
+      if (nodeFits(cx, cy)) spots.push([cx, cy]);
+      let guard = 0;
+      while (spots.length < count && guard++ < 60) {
+        const ox = cx + Math.round((rng() - 0.5) * 8);
+        const oy = cy + Math.round((rng() - 0.5) * 7);
+        if (!nodeFits(ox, oy)) continue;
+        if (spots.some(s => Math.abs(s[0] - ox) < 3 && Math.abs(s[1] - oy) < 3)) continue;
+        spots.push([ox, oy]);
+      }
+      if (spots.length >= count) {
+        spots.slice(0, count).forEach(s => commitNode(type, s[0], s[1]));
+        return true;
+      }
+    }
+    // último recurso: buscar cualquier hueco en el mapa
+    for (let t = 0; t < 3000 && count > 0; t++) {
+      const x = 2 + Math.floor(rng() * (MAP_W - 6));
+      const y = 2 + Math.floor(rng() * (MAP_H - 6));
+      if (nodeFits(x, y)) { commitNode(type, x, y); count--; }
+    }
+    return count === 0;
+  };
+
+  // hierro y cobre garantizados cerca del inicio; carbón lejos
+  placeCluster('iron', 5, 9, 2);
+  placeCluster('iron', 8, 14, 2);
+  placeCluster('iron', 13, 22, 2);
+  placeCluster('iron', 16, 28, 2);
+  placeCluster('copper', 7, 12, 2);
+  placeCluster('copper', 12, 20, 2);
+  placeCluster('copper', 18, 28, 2);
+  placeCluster('limestone', 8, 14, 2);
+  placeCluster('limestone', 14, 24, 2);
+  placeCluster('limestone', 18, 30, 2);
+  placeCluster('coal', 16, 24, 2);
+  placeCluster('coal', 20, 30, 3);
+  placeCluster('coal', 24, 36, 3);
+
+  /* ---- Vegetación ---- */
   const reserved = (x, y) => {
     if (x < 1 || y < 1 || x >= MAP_W - 1 || y >= MAP_H - 1) return true;
     if (world.waterTiles[key(x, y)]) return true;
     if (world.nodeTiles[key(x, y)] !== undefined) return true;
-    // zona del HUB y alrededores
-    if (x >= 15 && x <= 24 && y >= 19 && y <= 27) return true;
+    if (inHubZone(x, y)) return true;
     return false;
   };
 
-  // Arbustos de biomasa
-  let tries = 0;
-  while (world.bushes.length < 42 && tries++ < 4000) {
+  tries = 0;
+  const bushTarget = Math.floor(MAP_W * MAP_H / 110);
+  while (world.bushes.length < bushTarget && tries++ < 6000) {
     const x = 1 + Math.floor(rng() * (MAP_W - 2));
     const y = 1 + Math.floor(rng() * (MAP_H - 2));
     if (reserved(x, y)) continue;
@@ -85,9 +140,9 @@ function genWorld() {
     world.bushes.push({ x, y, charges: 3, timer: 0 });
   }
 
-  // Árboles (talar da biomasa)
   tries = 0;
-  while (world.trees.length < 34 && tries++ < 4000) {
+  const treeTarget = Math.floor(MAP_W * MAP_H / 130);
+  while (world.trees.length < treeTarget && tries++ < 6000) {
     const x = 1 + Math.floor(rng() * (MAP_W - 2));
     const y = 1 + Math.floor(rng() * (MAP_H - 2));
     if (reserved(x, y)) continue;
@@ -96,9 +151,9 @@ function genWorld() {
     world.trees.push({ x, y, hp: 3 });
   }
 
-  // Rocas decorativas (se quitan en modo demoler)
   tries = 0;
-  while (world.rocks.length < 16 && tries++ < 3000) {
+  const rockTarget = Math.floor(MAP_W * MAP_H / 260);
+  while (world.rocks.length < rockTarget && tries++ < 4000) {
     const x = 1 + Math.floor(rng() * (MAP_W - 2));
     const y = 1 + Math.floor(rng() * (MAP_H - 2));
     if (reserved(x, y)) continue;
