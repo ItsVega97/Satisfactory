@@ -1,0 +1,62 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+      - claude/satisfactory-factory-game-x13iuy
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync web assets to Android
+        run: npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk factoria-2d.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: factoria-2d-apk
+          path: factoria-2d.apk
+
+      - name: Publish APK release (apk-latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: 'Factoría 2D — APK (última versión)'
+          body: |
+            APK de depuración generado automáticamente desde el último commit.
+            Descarga `factoria-2d.apk` e instálalo en tu Android (permite "orígenes desconocidos").
+          prerelease: true
+          files: factoria-2d.apk

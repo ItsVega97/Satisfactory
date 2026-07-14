@@ -1,0 +1,18 @@
+{
+  "name": "factoria-2d",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Juego 2D de gestión y automatización de fábricas inspirado en Satisfactory",
+  "scripts": {
+    "serve": "npx http-server www -p 8080 -c-1",
+    "sync": "cap sync android",
+    "apk": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}

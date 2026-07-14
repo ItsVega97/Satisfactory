@@ -1,0 +1,587 @@
+/* =========================================================
+   Factoría 2D — Lógica del juego (estado, simulación, construcción)
+   ========================================================= */
+
+const SAVE_KEY = 'factoria2d_save_v1';
+let state = null;
+
+const DIRS = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
+const DIR_LIST = ['E', 'S', 'W', 'N'];
+function dirOf(dx, dy) {
+  if (dx === 1) return 'E'; if (dx === -1) return 'W';
+  if (dy === 1) return 'S'; return 'N';
+}
+function opposite(d) { return { E: 'W', W: 'E', N: 'S', S: 'N' }[d]; }
+
+/* ---------------- Nueva partida ---------------- */
+function newGame() {
+  state = {
+    version: 1,
+    time: 0,
+    playTime: 0,
+    inventory: {},
+    buildings: [],
+    beltMap: {},          // "x,y" -> {x,y,dir,items:[{item,pos}]}
+    occ: {},              // "x,y" -> building id
+    nextId: 1,
+    milestoneIndex: 0,
+    msProgress: {},       // item -> entregado (del hito actual)
+    unlockedB: ['portable_miner'],
+    unlockedR: [],
+    fuse: false,
+    power: { sup: 0, dem: 0 },
+    victory: false,
+    victoryShown: false,
+    stats: { mined: 0, crafted: 0, built: 0, produced: 0, delivered: 0 },
+    world: genWorld(),
+  };
+  // El HUB se coloca fijo
+  const hub = mkBuilding('hub', 18, 22);
+  state.buildings.push(hub);
+  occupy(hub);
+}
+
+function mkBuilding(type, x, y) {
+  const def = BUILDINGS[type];
+  const b = {
+    id: state.nextId++, type, x, y,
+    recipe: null, inBuf: {}, outBuf: {}, progress: 0, working: false,
+  };
+  if (type === 'storage') b.store = {};
+  if (def.fuelItem) { b.fuel = 0; b.burnLeft = 0; }
+  if (type === 'miner1' || type === 'portable_miner') {
+    const n = nodeAt(x, y);
+    b.nodeType = n ? n.type : null;
+    b.buf = 0;
+  }
+  return b;
+}
+
+function occupy(b) {
+  const def = BUILDINGS[b.type];
+  for (let dy = 0; dy < def.h; dy++)
+    for (let dx = 0; dx < def.w; dx++)
+      state.occ[key(b.x + dx, b.y + dy)] = b.id;
+}
+function unoccupy(b) {
+  const def = BUILDINGS[b.type];
+  for (let dy = 0; dy < def.h; dy++)
+    for (let dx = 0; dx < def.w; dx++)
+      delete state.occ[key(b.x + dx, b.y + dy)];
+}
+function buildingAt(x, y) {
+  const id = state.occ[key(x, y)];
+  if (id === undefined) return null;
+  return state.buildings.find(b => b.id === id) || null;
+}
+function beltAt(x, y) { return state.beltMap[key(x, y)] || null; }
+
+/* ---------------- Inventario ---------------- */
+function invCount(item) { return state.inventory[item] || 0; }
+function invAdd(item, n) {
+  if (n === 0) return;
+  state.inventory[item] = (state.inventory[item] || 0) + n;
+  if (state.inventory[item] <= 0) delete state.inventory[item];
+}
+function canAfford(cost) {
+  for (const k in cost) if (invCount(k) < cost[k]) return false;
+  return true;
+}
+function payCost(cost) { for (const k in cost) invAdd(k, -cost[k]); }
+function refund(cost) { for (const k in cost) invAdd(k, cost[k]); }
+
+/* ---------------- Construcción ---------------- */
+function tileFree(x, y) {
+  if (!inBounds(x, y)) return false;
+  if (isWater(x, y)) return false;
+  if (state.occ[key(x, y)] !== undefined) return false;
+  if (beltAt(x, y)) return false;
+  if (treeAt(x, y) || rockAt(x, y) || bushAt(x, y)) return false;
+  return true;
+}
+
+function canPlaceBuilding(type, x, y) {
+  const def = BUILDINGS[type];
+  const onNode = type === 'miner1' || type === 'portable_miner';
+  let node = null;
+  if (onNode) {
+    node = nodeAt(x, y);
+    if (!node) return { ok: false, why: 'Debe colocarse sobre un yacimiento' };
+    if (type === 'miner1') { x = node.x; y = node.y; }
+  }
+  for (let dy = 0; dy < def.h; dy++) {
+    for (let dx = 0; dx < def.w; dx++) {
+      const tx = x + dx, ty = y + dy;
+      if (!inBounds(tx, ty)) return { ok: false, why: 'Fuera del mapa' };
+      if (isWater(tx, ty)) return { ok: false, why: 'No se puede construir en el agua' };
+      if (state.occ[key(tx, ty)] !== undefined) return { ok: false, why: 'Espacio ocupado' };
+      if (beltAt(tx, ty)) return { ok: false, why: 'Hay una cinta en el camino' };
+      if (treeAt(tx, ty) || rockAt(tx, ty) || bushAt(tx, ty)) return { ok: false, why: 'Despeja la vegetación primero' };
+      const n = nodeAt(tx, ty);
+      if (onNode) {
+        if (!n || n !== node) {
+          if (type === 'miner1') return { ok: false, why: 'Debe cubrir el yacimiento completo' };
+          if (type === 'portable_miner' && !n) return { ok: false, why: 'Debe colocarse sobre un yacimiento' };
+        }
+      } else if (n) {
+        return { ok: false, why: 'No se puede construir sobre un yacimiento' };
+      }
+    }
+  }
+  if (type === 'portable_miner') {
+    const count = state.buildings.filter(b => b.type === 'portable_miner').length;
+    if (count >= def.limit) return { ok: false, why: 'Máximo ' + def.limit + ' taladros portátiles' };
+  }
+  return { ok: true, x, y };
+}
+
+function placeBuilding(type, x, y) {
+  const def = BUILDINGS[type];
+  const chk = canPlaceBuilding(type, x, y);
+  if (!chk.ok) return chk;
+  if (!canAfford(def.cost)) return { ok: false, why: 'Faltan materiales: ' + fmtCost(def.cost) };
+  payCost(def.cost);
+  const b = mkBuilding(type, chk.x !== undefined ? chk.x : x, chk.y !== undefined ? chk.y : y);
+  state.buildings.push(b);
+  occupy(b);
+  state.stats.built++;
+  sfx('build');
+  return { ok: true, b };
+}
+
+function demolishBuilding(b) {
+  if (b.type === 'hub') return false;
+  const def = BUILDINGS[b.type];
+  refund(def.cost);
+  // devolver contenidos
+  for (const k in b.inBuf) invAdd(k, b.inBuf[k]);
+  for (const k in b.outBuf) invAdd(k, b.outBuf[k]);
+  if (b.store) for (const k in b.store) invAdd(k, b.store[k]);
+  if (b.fuel) invAdd(def.fuelItem, b.fuel);
+  if (b.buf && b.nodeType) invAdd(NODE_TYPES[b.nodeType].item, Math.floor(b.buf));
+  unoccupy(b);
+  state.buildings = state.buildings.filter(x => x.id !== b.id);
+  sfx('demolish');
+  return true;
+}
+
+/* ---------------- Cintas ---------------- */
+function canPlaceBelt(x, y) {
+  if (!inBounds(x, y)) return false;
+  if (isWater(x, y)) return false;
+  if (state.occ[key(x, y)] !== undefined) return false;
+  if (nodeAt(x, y)) return false;
+  if (treeAt(x, y) || rockAt(x, y) || bushAt(x, y)) return false;
+  return true;
+}
+
+/* Coloca una ruta de cintas [{x,y},...]. Devuelve nº colocadas. */
+function placeBeltPath(path) {
+  let placed = 0;
+  for (let i = 0; i < path.length; i++) {
+    const c = path[i];
+    let dir;
+    if (i < path.length - 1) dir = dirOf(path[i + 1].x - c.x, path[i + 1].y - c.y);
+    else if (i > 0) dir = dirOf(c.x - path[i - 1].x, c.y - path[i - 1].y);
+    else dir = c.dir || 'E';
+    const existing = beltAt(c.x, c.y);
+    if (existing) { existing.dir = dir; continue; }
+    if (!canPlaceBelt(c.x, c.y)) continue;
+    if (!canAfford(BUILDINGS.conveyor.cost)) {
+      toast('Sin placas para más cintas');
+      break;
+    }
+    payCost(BUILDINGS.conveyor.cost);
+    state.beltMap[key(c.x, c.y)] = { x: c.x, y: c.y, dir, items: [] };
+    placed++;
+  }
+  if (placed > 0) { state.stats.built += placed; sfx('build'); }
+  return placed;
+}
+
+function removeBelt(x, y) {
+  const b = beltAt(x, y);
+  if (!b) return false;
+  for (const it of b.items) invAdd(it.item, 1);
+  refund(BUILDINGS.conveyor.cost);
+  delete state.beltMap[key(x, y)];
+  sfx('demolish');
+  return true;
+}
+
+/* ¿Acepta el edificio este objeto (por cinta)? */
+function acceptsItem(b, item) {
+  const def = BUILDINGS[b.type];
+  if (b.type === 'hub') return true;
+  if (b.type === 'storage') {
+    let total = 0; for (const k in b.store) total += b.store[k];
+    return total < def.cap;
+  }
+  if (def.fuelItem) return item === def.fuelItem && b.fuel < 50;
+  if (b.recipe) {
+    const r = RECIPES[b.recipe];
+    if (!(item in r.in)) return false;
+    const cap = Math.max(10, r.in[item] * 4);
+    return (b.inBuf[item] || 0) < cap;
+  }
+  return false;
+}
+
+function insertItem(b, item) {
+  if (b.type === 'hub') { invAdd(item, 1); return; }
+  if (b.type === 'storage') { b.store[item] = (b.store[item] || 0) + 1; return; }
+  const def = BUILDINGS[b.type];
+  if (def.fuelItem) { b.fuel++; return; }
+  b.inBuf[item] = (b.inBuf[item] || 0) + 1;
+}
+
+/* Puertos de salida: cintas adyacentes que NO apuntan hacia el edificio */
+function outputBelts(b) {
+  const def = BUILDINGS[b.type];
+  const out = [];
+  const check = (bx, by, intoDir) => {
+    const belt = beltAt(bx, by);
+    if (belt && belt.dir !== intoDir) out.push(belt);
+  };
+  for (let dx = 0; dx < def.w; dx++) {
+    check(b.x + dx, b.y - 1, 'S');          // arriba: hacia el edificio sería S
+    check(b.x + dx, b.y + def.h, 'N');      // abajo
+  }
+  for (let dy = 0; dy < def.h; dy++) {
+    check(b.x - 1, b.y + dy, 'E');          // izquierda
+    check(b.x + def.w, b.y + dy, 'W');      // derecha
+  }
+  return out;
+}
+
+function beltHasSpaceAtStart(belt) {
+  for (const it of belt.items) if (it.pos < BELT_SPACING) return false;
+  return true;
+}
+
+function pushToBelts(b, getItem) {
+  const belts = outputBelts(b);
+  for (const belt of belts) {
+    if (!beltHasSpaceAtStart(belt)) continue;
+    const item = getItem();
+    if (!item) return;
+    belt.items.push({ item, pos: 0 });
+  }
+}
+
+/* ---------------- Energía ---------------- */
+function computePower() {
+  let sup = 0, dem = 0;
+  for (const b of state.buildings) {
+    const def = BUILDINGS[b.type];
+    if (def.power > 0) {
+      if (b.fuel > 0 || b.burnLeft > 0) sup += def.power;
+    } else if (def.power < 0) {
+      if (machineWants(b)) dem += -def.power;
+    }
+  }
+  state.power.sup = sup;
+  state.power.dem = dem;
+  if (dem > sup && !state.fuse) {
+    state.fuse = true;
+    sfx('error');
+    toast('¡Fusible fundido! Añade generación y rearma (⚡)');
+  }
+}
+
+function machineWants(b) {
+  const def = BUILDINGS[b.type];
+  if (b.type === 'miner1') return b.buf < OUT_CAP;
+  if (b.working) return true;
+  if (!b.recipe) return false;
+  const r = RECIPES[b.recipe];
+  for (const k in r.in) if ((b.inBuf[k] || 0) < r.in[k]) return false;
+  for (const k in r.out) if ((b.outBuf[k] || 0) + r.out[k] > OUT_CAP) return false;
+  return true;
+}
+
+function rearmFuse() {
+  state.fuse = false;
+  toast('Fusible rearmado');
+  sfx('click');
+}
+
+/* ---------------- Simulación ---------------- */
+function tick(dt) {
+  if (!state) return;
+  state.time += dt;
+  state.playTime += dt;
+
+  // arbustos: recarga
+  for (const bush of state.world.bushes) {
+    if (bush.charges <= 0) {
+      bush.timer -= dt;
+      if (bush.timer <= 0) bush.charges = 3;
+    }
+  }
+
+  computePower();
+  const powerOK = !state.fuse && state.power.dem <= state.power.sup;
+
+  // generadores: quemar combustible según demanda
+  const burnFactor = state.power.sup > 0 ? Math.min(1, state.power.dem / state.power.sup) : 0;
+  for (const b of state.buildings) {
+    const def = BUILDINGS[b.type];
+    if (def.power <= 0 || state.fuse) continue;
+    if (b.burnLeft <= 0 && b.fuel > 0) { b.fuel--; b.burnLeft = def.burnTime; }
+    if (b.burnLeft > 0) b.burnLeft -= dt * Math.max(0.05, burnFactor);
+  }
+
+  // cintas: mover objetos
+  for (const k in state.beltMap) {
+    const belt = state.beltMap[k];
+    if (!belt.items.length) continue;
+    belt.items.sort((a, b2) => b2.pos - a.pos);
+    for (let i = 0; i < belt.items.length; i++) {
+      const it = belt.items[i];
+      let target = it.pos + BELT_SPEED * dt;
+      if (i > 0) target = Math.min(target, belt.items[i - 1].pos - BELT_SPACING);
+      if (i === 0 && target >= 1) {
+        const [dx, dy] = DIRS[belt.dir];
+        const nx = belt.x + dx, ny = belt.y + dy;
+        const nb = beltAt(nx, ny);
+        if (nb) {
+          let minPos = Infinity;
+          for (const o of nb.items) minPos = Math.min(minPos, o.pos);
+          if (minPos >= BELT_SPACING) {
+            belt.items.splice(i, 1); i--;
+            nb.items.push({ item: it.item, pos: Math.min(target - 1, minPos - BELT_SPACING) });
+            continue;
+          } else target = 1;
+        } else {
+          const bld = buildingAt(nx, ny);
+          if (bld && acceptsItem(bld, it.item)) {
+            insertItem(bld, it.item);
+            belt.items.splice(i, 1); i--;
+            continue;
+          } else target = 1;
+        }
+      }
+      it.pos = Math.max(it.pos, Math.min(target, 1));
+    }
+  }
+
+  // edificios
+  for (const b of state.buildings) {
+    const def = BUILDINGS[b.type];
+
+    if (b.type === 'portable_miner') {
+      if (b.buf < def.cap) {
+        b.buf += def.rate * dt;
+        if (b.buf > def.cap) b.buf = def.cap;
+      }
+      continue;
+    }
+
+    if (b.type === 'miner1') {
+      if (powerOK && b.buf < OUT_CAP) {
+        b.progress += def.rate * dt;
+        while (b.progress >= 1 && b.buf < OUT_CAP) { b.progress -= 1; b.buf++; state.stats.produced++; }
+        if (b.buf >= OUT_CAP) b.progress = Math.min(b.progress, 1);
+      }
+      if (b.buf >= 1 && b.nodeType) {
+        const item = NODE_TYPES[b.nodeType].item;
+        pushToBelts(b, () => { if (b.buf >= 1) { b.buf--; return item; } return null; });
+      }
+      continue;
+    }
+
+    if (MACH_RECIPES[b.type]) {
+      if (b.recipe) {
+        const r = RECIPES[b.recipe];
+        if (!b.working) {
+          let can = true;
+          for (const k2 in r.in) if ((b.inBuf[k2] || 0) < r.in[k2]) can = false;
+          for (const k2 in r.out) if ((b.outBuf[k2] || 0) + r.out[k2] > OUT_CAP) can = false;
+          if (can) {
+            for (const k2 in r.in) b.inBuf[k2] -= r.in[k2];
+            b.working = true; b.progress = 0;
+          }
+        }
+        if (b.working && powerOK) {
+          b.progress += dt / r.time;
+          if (b.progress >= 1) {
+            for (const k2 in r.out) {
+              b.outBuf[k2] = (b.outBuf[k2] || 0) + r.out[k2];
+              state.stats.produced += r.out[k2];
+            }
+            b.working = false; b.progress = 0;
+          }
+        }
+      }
+      // empujar salida a cintas
+      pushToBelts(b, () => {
+        for (const k2 in b.outBuf) {
+          if (b.outBuf[k2] >= 1) { b.outBuf[k2]--; if (b.outBuf[k2] <= 0) delete b.outBuf[k2]; return k2; }
+        }
+        return null;
+      });
+      continue;
+    }
+
+    if (b.type === 'storage') {
+      pushToBelts(b, () => {
+        for (const k2 in b.store) {
+          if (b.store[k2] >= 1) { b.store[k2]--; if (b.store[k2] <= 0) delete b.store[k2]; return k2; }
+        }
+        return null;
+      });
+    }
+  }
+}
+
+/* ---------------- Interacción con el mundo ---------------- */
+let mineCooldown = 0;
+function manualMine(node) {
+  if (performance.now() < mineCooldown) return false;
+  mineCooldown = performance.now() + 220;
+  const item = NODE_TYPES[node.type].item;
+  invAdd(item, 1);
+  state.stats.mined++;
+  sfx('mine');
+  return item;
+}
+
+function harvestBush(bush) {
+  if (bush.charges <= 0) return 0;
+  bush.charges--;
+  if (bush.charges <= 0) bush.timer = 60;
+  invAdd('biomass', 4);
+  sfx('collect');
+  return 4;
+}
+
+function chopTree(tree) {
+  tree.hp--;
+  sfx('mine');
+  if (tree.hp <= 0) {
+    state.world.trees = state.world.trees.filter(t => t !== tree);
+    invAdd('biomass', 8);
+    sfx('collect');
+    return 8;
+  }
+  return 0;
+}
+
+function collectPortable(b) {
+  const n = Math.floor(b.buf);
+  if (n <= 0) return 0;
+  b.buf -= n;
+  invAdd(NODE_TYPES[b.nodeType].item, n);
+  state.stats.mined += n;
+  sfx('collect');
+  return n;
+}
+
+function collectOutput(b) {
+  let total = 0;
+  for (const k in b.outBuf) {
+    const n = Math.floor(b.outBuf[k]);
+    if (n > 0) { invAdd(k, n); b.outBuf[k] -= n; total += n; }
+    if (b.outBuf[k] <= 0) delete b.outBuf[k];
+  }
+  if (total > 0) sfx('collect');
+  return total;
+}
+
+function loadFuel(b, amount) {
+  const def = BUILDINGS[b.type];
+  const item = def.fuelItem;
+  const n = Math.min(amount, invCount(item), 50 - b.fuel);
+  if (n <= 0) return 0;
+  invAdd(item, -n);
+  b.fuel += n;
+  sfx('click');
+  return n;
+}
+
+/* ---------------- Fabricación manual (banco del HUB) ---------------- */
+function handCraft(recipeId, times) {
+  const r = RECIPES[recipeId];
+  let made = 0;
+  for (let i = 0; i < times; i++) {
+    if (!canAfford(r.in)) break;
+    payCost(r.in);
+    for (const k in r.out) invAdd(k, r.out[k]);
+    made++;
+  }
+  if (made > 0) { state.stats.crafted += made; sfx('craft'); }
+  return made;
+}
+
+/* ---------------- Hitos ---------------- */
+function currentMilestone() {
+  return MILESTONES[state.milestoneIndex] || null;
+}
+
+function deliverItem(item) {
+  const ms = currentMilestone();
+  if (!ms || !(item in ms.req)) return 0;
+  const done = state.msProgress[item] || 0;
+  const need = ms.req[item] - done;
+  const n = Math.min(need, invCount(item));
+  if (n <= 0) return 0;
+  invAdd(item, -n);
+  state.msProgress[item] = done + n;
+  state.stats.delivered += n;
+  sfx('collect');
+  checkMilestone();
+  return n;
+}
+
+function milestoneComplete(ms) {
+  for (const k in ms.req) if ((state.msProgress[k] || 0) < ms.req[k]) return false;
+  return true;
+}
+
+function checkMilestone() {
+  const ms = currentMilestone();
+  if (!ms || !milestoneComplete(ms)) return;
+  // aplicar desbloqueos
+  const u = ms.unlocks || {};
+  (u.buildings || []).forEach(b => { if (!state.unlockedB.includes(b)) state.unlockedB.push(b); });
+  (u.recipes || []).forEach(r => { if (!state.unlockedR.includes(r)) state.unlockedR.push(r); });
+  state.milestoneIndex++;
+  state.msProgress = {};
+  sfx('milestone');
+  if (u.victory) {
+    state.victory = true;
+    onVictory();
+  } else {
+    toast('🎉 Hito completado: ' + ms.name);
+    const next = currentMilestone();
+    if (next) toast('Nuevo hito: ' + next.name);
+    onUnlocksChanged();
+  }
+}
+
+/* ---------------- Guardar / Cargar ---------------- */
+function saveGame() {
+  try {
+    const s = JSON.stringify(state);
+    localStorage.setItem(SAVE_KEY, s);
+    return true;
+  } catch (e) { return false; }
+}
+
+function loadGame() {
+  try {
+    const s = localStorage.getItem(SAVE_KEY);
+    if (!s) return false;
+    const data = JSON.parse(s);
+    if (!data || data.version !== 1) return false;
+    state = data;
+    return true;
+  } catch (e) { return false; }
+}
+
+function resetGame() {
+  localStorage.removeItem(SAVE_KEY);
+  newGame();
+  onUnlocksChanged();
+}
