@@ -9,7 +9,7 @@ Juego de gestión y automatización de fábricas en 2D (con simulación pseudo-3
 Eres un ingeniero de FICSIT. Tu misión: completar los **6 hitos del HUB** hasta enviar la **Fase 1 del Ascensor Espacial**.
 
 1. **Pica recursos a mano** — toca los yacimientos (rocas de colores) para extraer mineral.
-2. **Taladro portátil** — colócalo sobre un yacimiento (gratis, máx. 6) y toca para recoger lo extraído.
+2. **Taladro portátil** — colócalo sobre un yacimiento (cuesta 5 de mineral de hierro, máx. 6) y toca para recoger lo extraído.
 3. **HUB** — entrega objetos para completar hitos y fabrica piezas a mano en el banco de artesanía.
 4. **Automatiza** — desbloquea Fundidoras, Constructores, Ensambladoras y Mineros Mk.1. Toca cada máquina para asignarle una receta.
 5. **Cintas transportadoras** — arrastra el dedo (modo cintas) para conectar mineros, máquinas y HUB.
