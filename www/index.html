@@ -12,30 +12,29 @@
   <canvas id="game"></canvas>
 
   <div id="topbar">
-    <div id="powerStat" class="stat">⚡ 0/0 MW</div>
-    <button id="msStat" class="stat clickable">🎯 Hito</button>
+    <div id="powerStat" class="stat"></div>
+    <button id="msStat" class="stat clickable"></button>
     <div class="spacer"></div>
-    <button id="invBtn" class="stat clickable">🎒</button>
-    <button id="menuBtn" class="stat clickable">☰</button>
+    <button id="invBtn" class="stat clickable"></button>
+    <button id="menuBtn" class="stat clickable"></button>
   </div>
 
   <div id="hint" class="hidden"></div>
 
-  <div id="fuseBanner" class="hidden">
-    ⚡ ¡FUSIBLE FUNDIDO! La demanda supera la generación.
-    <button id="fuseReset">Rearmar</button>
+  <div id="powerBanner" class="hidden">
+    ¡Red sobrecargada! La demanda supera la generación: añade o alimenta generadores.
   </div>
 
   <div id="modebar">
-    <button data-mode="select" class="active" title="Seleccionar / mover">🖐</button>
-    <button data-mode="build" title="Construir">🔨</button>
-    <button data-mode="belt" title="Cintas">➡️</button>
-    <button data-mode="demolish" title="Demoler">🧨</button>
+    <button data-mode="select" class="active" title="Seleccionar / mover"></button>
+    <button data-mode="build" title="Construir"></button>
+    <button data-mode="belt" title="Cintas"></button>
+    <button data-mode="demolish" title="Demoler"></button>
   </div>
 
   <div id="confirmBar" class="hidden">
-    <button id="ghostOk">✓ Construir</button>
-    <button id="ghostCancel">✗</button>
+    <button id="ghostOk">Construir</button>
+    <button id="ghostCancel">Cancelar</button>
   </div>
 
   <div id="palette" class="hidden"></div>
@@ -43,16 +42,16 @@
   <div id="sheet" class="hidden">
     <div id="sheetHead">
       <span id="sheetTitle"></span>
-      <button id="sheetClose">✕</button>
+      <button id="sheetClose"></button>
     </div>
     <div id="sheetBody"></div>
   </div>
 
-  <div id="toast"></div>
+  <div id="toasts"></div>
 
   <div id="victory" class="hidden">
     <div class="v-card">
-      <h1>🚀 ¡FASE 1 COMPLETADA!</h1>
+      <h1>¡FASE 1 COMPLETADA!</h1>
       <p>Has enviado las piezas del Ascensor Espacial. FICSIT está orgullosa de ti, ingeniero.</p>
       <div id="vStats"></div>
       <button id="vContinue" class="btn">Seguir construyendo</button>
@@ -60,6 +59,7 @@
   </div>
 
   <script src="js/data.js"></script>
+  <script src="js/icons.js"></script>
   <script src="js/world.js"></script>
   <script src="js/game.js"></script>
   <script src="js/render.js"></script>

@@ -86,7 +86,7 @@ function boot() {
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
 
   if (!loaded) {
-    setTimeout(() => toast('👷 Bienvenido, ingeniero. Pica hierro tocando los yacimientos junto al HUB.'), 600);
+    setTimeout(() => toast('Bienvenido, ingeniero. Pica hierro tocando los yacimientos junto al HUB.'), 600);
   } else {
     toast('Partida cargada. ¡Seguimos construyendo!');
   }

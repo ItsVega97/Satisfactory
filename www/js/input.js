@@ -28,7 +28,7 @@ function setMode(m) {
   if (m === 'build') rebuildPalette();
   const tips = {
     select: 'Toca yacimientos para picar, edificios para gestionarlos. Arrastra para moverte.',
-    build: 'Elige un edificio abajo y toca el mapa para situarlo. Confirma con ✓.',
+    build: 'Elige un edificio abajo y toca el mapa para situarlo. Confirma con el botón Construir.',
     belt: 'Arrastra el dedo por el mapa para trazar cintas.',
     demolish: 'Toca edificios, cintas o rocas para retirarlos (se devuelven los materiales).',
   };
@@ -194,7 +194,7 @@ function handleTap(sx, sy) {
       state.world.trees = state.world.trees.filter(x => x !== tr);
       invAdd('biomass', 8);
       sfx('collect');
-      addFloat(w.x, w.y, '+8 Biomasa', '#a5d16e');
+      addFloat(w.x, w.y, '+8 Biomasa', '#a5d16e', 'biomass');
     }
     return;
   }
@@ -205,7 +205,7 @@ function handleTap(sx, sy) {
     if (b.type === 'hub') { openHubPanel(); return; }
     if (b.type === 'portable_miner') {
       const n = collectPortable(b);
-      if (n > 0) addFloat(w.x, w.y, '+' + n + ' ' + itemName(NODE_TYPES[b.nodeType].item), '#ffd64f');
+      if (n > 0) addFloat(w.x, w.y, '+' + n + ' ' + itemName(NODE_TYPES[b.nodeType].item), '#ffd64f', NODE_TYPES[b.nodeType].item);
       else toast('El taladro aún no tiene mineral. Espera un poco.');
       return;
     }
@@ -217,14 +217,14 @@ function handleTap(sx, sy) {
   const node = nodeAt(tPos.x, tPos.y);
   if (node) {
     const item = manualMine(node);
-    if (item) addFloat(w.x, w.y, '+1 ' + itemName(item), '#fff');
+    if (item) addFloat(w.x, w.y, '+1 ' + itemName(item), '#fff', item);
     return;
   }
 
   const bush = bushAt(tPos.x, tPos.y);
   if (bush) {
     const n = harvestBush(bush);
-    if (n > 0) addFloat(w.x, w.y, '+' + n + ' Biomasa', '#a5d16e');
+    if (n > 0) addFloat(w.x, w.y, '+' + n + ' Biomasa', '#a5d16e', 'biomass');
     else toast('El arbusto está rebrotando...');
     return;
   }
@@ -232,7 +232,7 @@ function handleTap(sx, sy) {
   const tree = treeAt(tPos.x, tPos.y);
   if (tree) {
     const n = chopTree(tree);
-    addFloat(w.x, w.y, n > 0 ? '+' + n + ' Biomasa' : '¡Talando! (' + tree.hp + ')', '#a5d16e');
+    addFloat(w.x, w.y, n > 0 ? '+' + n + ' Biomasa' : 'Talando... (' + tree.hp + ')', '#a5d16e', n > 0 ? 'biomass' : null);
     return;
   }
 

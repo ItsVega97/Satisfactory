@@ -15,34 +15,44 @@ const $ = id => document.getElementById(id);
 
 function chip(item, qty) {
   const it = ITEMS[item];
-  return `<span class="chip"><span class="dot" style="background:${it.color};border-color:${it.ring}"></span>${qty !== undefined ? qty + ' × ' : ''}${it.name}</span>`;
+  return `<span class="chip"><img class="icico" src="${itemIconURL(item)}" alt="">${qty !== undefined ? qty + ' × ' : ''}${it.name}</span>`;
 }
 
-/* ---------------- Toasts ---------------- */
-let toastTimer = null;
+/* ---------------- Toasts apilados (se desvanecen en orden) ---------------- */
 function toast(msg) {
-  const el = $('toast');
+  const box = $('toasts');
+  // si ya hay un toast idéntico visible, no duplicar
+  for (const child of box.children) {
+    if (child.dataset.msg === msg) return;
+  }
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.dataset.msg = msg;
   el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  box.appendChild(el);
+  // máximo 3 visibles: retirar los más antiguos
+  while (box.children.length > 3) box.firstElementChild.remove();
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 350);
+  }, 2600);
 }
 
 /* ---------------- Barra superior ---------------- */
 function updateTopbar() {
   const p = state.power;
-  const el = $('powerStat');
-  el.textContent = `⚡ ${p.dem}/${p.sup} MW`;
-  el.classList.toggle('bad', state.fuse || p.dem > p.sup);
-  $('fuseBanner').classList.toggle('hidden', !state.fuse);
+  $('powerVal').textContent = `${p.dem}/${p.sup} MW`;
+  $('powerStat').classList.toggle('bad', p.overload);
+  $('powerBanner').classList.toggle('hidden', !p.overload);
 
   const ms = currentMilestone();
   if (ms) {
     let done = 0, total = 0;
     for (const k in ms.req) { total += ms.req[k]; done += Math.min(ms.req[k], state.msProgress[k] || 0); }
-    $('msStat').textContent = `🎯 ${ms.name} · ${Math.floor(done / total * 100)}%`;
+    $('msVal').textContent = `${ms.name} · ${Math.floor(done / total * 100)}%`;
   } else {
-    $('msStat').textContent = '🏆 ¡Todo completado!';
+    $('msVal').textContent = '¡Todo completado!';
   }
 }
 
@@ -50,14 +60,14 @@ function updateTopbar() {
 function rebuildPalette() {
   const pal = $('palette');
   pal.innerHTML = '';
-  const order = ['portable_miner', 'miner1', 'smelter', 'constructor', 'assembler', 'storage', 'biomass_burner', 'coal_generator'];
+  const order = ['portable_miner', 'miner1', 'smelter', 'constructor', 'assembler', 'storage', 'power_pole', 'biomass_burner', 'coal_generator'];
   for (const id of order) {
     const def = BUILDINGS[id];
     const unlocked = state.unlockedB.includes(id);
     const div = document.createElement('button');
     div.className = 'pal-item' + (unlocked ? '' : ' locked') + (ui.buildType === id ? ' sel' : '');
     const afford = canAfford(def.cost);
-    div.innerHTML = `<span class="pal-emoji">${unlocked ? def.emoji : '🔒'}</span>
+    div.innerHTML = `<img class="pal-img" src="${buildingIconURL(id)}" alt="">
       <span class="pal-name">${def.name}</span>
       <span class="pal-cost ${afford || !unlocked ? '' : 'bad'}">${unlocked ? fmtCost(def.cost) : 'Bloqueado'}</span>`;
     div.addEventListener('click', () => {
@@ -83,7 +93,7 @@ function updateConfirmBar() {
 /* ---------------- Hoja inferior (paneles) ---------------- */
 function openSheet(kind, title) {
   ui.sheetKind = kind;
-  $('sheetTitle').textContent = title;
+  $('sheetTitle').innerHTML = title;
   $('sheet').classList.remove('hidden');
   refreshSheet();
 }
@@ -104,20 +114,20 @@ function refreshSheet() {
 /* ---------------- Panel del HUB ---------------- */
 function openHubPanel(tab) {
   if (tab) ui.hubTab = tab;
-  openSheet('hub', '🏠 HUB de FICSIT');
+  openSheet('hub', `<img class="title-img" src="${buildingIconURL('hub')}" alt=""> HUB de FICSIT`);
 }
 
 function renderHubSheet() {
   const body = $('sheetBody');
   const ms = currentMilestone();
   let html = `<div class="tabs">
-    <button class="tab ${ui.hubTab === 'hitos' ? 'on' : ''}" data-tab="hitos">🎯 Hitos</button>
-    <button class="tab ${ui.hubTab === 'banco' ? 'on' : ''}" data-tab="banco">🔧 Banco de artesanía</button>
+    <button class="tab ${ui.hubTab === 'hitos' ? 'on' : ''}" data-tab="hitos">Hitos</button>
+    <button class="tab ${ui.hubTab === 'banco' ? 'on' : ''}" data-tab="banco">Banco de artesanía</button>
   </div>`;
 
   if (ui.hubTab === 'hitos') {
     if (!ms) {
-      html += `<p class="ok">🏆 ¡Has completado todos los hitos! Sigue ampliando tu fábrica.</p>`;
+      html += `<p class="ok">¡Has completado todos los hitos! Sigue ampliando tu fábrica.</p>`;
     } else {
       html += `<h3>Hito ${state.milestoneIndex + 1}/${MILESTONES.length}: ${ms.name}</h3>
         <p class="dim">${ms.desc}</p>`;
@@ -137,7 +147,7 @@ function renderHubSheet() {
       const unlockTxt = [
         ...(u.buildings || []).map(b => BUILDINGS[b].name),
         ...(u.recipes || []).map(r => RECIPES[r].name),
-        ...(u.victory ? ['🚀 ¡VICTORIA!'] : []),
+        ...(u.victory ? ['¡VICTORIA!'] : []),
       ];
       if (unlockTxt.length) html += `<p class="dim">Desbloquea: ${unlockTxt.join(', ')}</p>`;
     }
@@ -177,7 +187,7 @@ function renderHubSheet() {
 /* ---------------- Panel de edificio ---------------- */
 function openBuildingPanel(b) {
   ui.sheetBuilding = b;
-  openSheet('building', BUILDINGS[b.type].emoji + ' ' + BUILDINGS[b.type].name);
+  openSheet('building', `<img class="title-img" src="${buildingIconURL(b.type)}" alt=""> ${BUILDINGS[b.type].name}`);
 }
 
 function renderBuildingSheet() {
@@ -186,6 +196,12 @@ function renderBuildingSheet() {
   const def = BUILDINGS[b.type];
   const body = $('sheetBody');
   let html = `<p class="dim">${def.desc}</p>`;
+
+  if (def.power < 0) {
+    if (!b._conn) html += `<p class="warn">Sin conexión a la red eléctrica: acércala al HUB, a un generador o a un poste.</p>`;
+    else if (!b._pw && machineWants(b)) html += `<p class="warn">Red sin energía suficiente: añade o alimenta generadores.</p>`;
+    else html += `<p class="ok">Conectada a la red eléctrica (${-def.power} MW).</p>`;
+  }
 
   if (b.type === 'miner1') {
     const item = NODE_TYPES[b.nodeType].item;
@@ -229,12 +245,12 @@ function renderBuildingSheet() {
 
   if (def.fuelItem) {
     const inv = invCount(def.fuelItem);
-    html += `<p>Combustible: ${chip(def.fuelItem)} <b>${b.fuel}</b>/50 ${b.burnLeft > 0 ? '· 🔥 quemando' : ''}</p>
+    html += `<p>Combustible: ${chip(def.fuelItem)} <b>${b.fuel}</b>/50 ${b.burnLeft > 0 ? '· quemando' : ''}</p>
       <button class="btn" id="bFuel" ${inv <= 0 ? 'disabled' : ''}>Cargar ${def.fuelItem === 'coal' ? 'carbón' : 'biomasa'} (tienes ${inv})</button>`;
     if (b.type === 'coal_generator') html += `<p class="dim">También acepta carbón por cinta.</p>`;
   }
 
-  html += `<hr><button class="btn danger" id="bDemolish">🧨 Demoler (devuelve materiales)</button>`;
+  html += `<hr><button class="btn danger" id="bDemolish">Demoler (devuelve materiales)</button>`;
   body.innerHTML = html;
 
   body.querySelectorAll('.recipe-btn').forEach(btn => btn.addEventListener('click', () => {
@@ -285,7 +301,7 @@ function renderInventorySheet() {
   let html = '<div class="inv-grid">';
   for (const k of keys) {
     const it = ITEMS[k];
-    html += `<div class="inv-cell"><span class="dot big" style="background:${it.color};border-color:${it.ring}"></span>
+    html += `<div class="inv-cell"><img class="inv-img" src="${itemIconURL(k)}" alt="">
       <b>${state.inventory[k]}</b><small>${it.name}</small></div>`;
   }
   html += '</div>';
@@ -300,20 +316,20 @@ function renderMenuSheet() {
     <p class="dim">Tiempo de partida: <b>${m}m ${s}s</b> · Construcciones: <b>${state.stats.built}</b> ·
     Producido: <b>${state.stats.produced}</b> · Fabricado a mano: <b>${state.stats.crafted}</b></p>
     <div class="menu-list">
-      <button class="btn" id="mSound">${audioMuted ? '🔇 Activar sonido' : '🔊 Silenciar'}</button>
-      <button class="btn" id="mSave">💾 Guardar partida</button>
-      <button class="btn" id="mHelp">❓ Cómo jugar</button>
-      <button class="btn danger" id="mReset">🗑️ Nueva partida</button>
+      <button class="btn" id="mSound">${audioMuted ? 'Activar sonido' : 'Silenciar sonido'}</button>
+      <button class="btn" id="mSave">Guardar partida</button>
+      <button class="btn" id="mHelp">Cómo jugar</button>
+      <button class="btn danger" id="mReset">Nueva partida</button>
     </div>
     <div id="helpBox" class="hidden help-box">
       <h4>Cómo jugar</h4>
       <ol>
         <li><b>Pica recursos:</b> toca los yacimientos (rocas de colores) para extraer mineral a mano.</li>
-        <li><b>Taladro portátil:</b> en 🔨 Construir, colócalo sobre un yacimiento y tócalo para recoger lo extraído.</li>
-        <li><b>HUB:</b> toca el edificio HUB para entregar objetos a los hitos y fabricar a mano en el banco.</li>
+        <li><b>Taladro portátil:</b> en modo Construir, colócalo sobre un yacimiento (cuesta 5 de mineral de hierro) y tócalo para recoger lo extraído.</li>
+        <li><b>HUB:</b> toca el edificio HUB para entregar objetos a los hitos y fabricar a mano en el banco. Además suministra 10 MW a los edificios cercanos.</li>
         <li><b>Automatiza:</b> desbloquea Fundidoras, Constructores y Mineros. Asigna una receta tocando la máquina.</li>
-        <li><b>Cintas (➡️):</b> arrastra el dedo para trazar cintas desde los mineros a las máquinas y hasta el HUB.</li>
-        <li><b>Energía:</b> las máquinas necesitan MW. Construye quemadores de biomasa (recoge arbustos y tala árboles) y luego generadores de carbón. Si la demanda supera la generación, salta el fusible.</li>
+        <li><b>Cintas:</b> en el modo cintas, arrastra el dedo para trazarlas desde los mineros a las máquinas y hasta el HUB.</li>
+        <li><b>Electricidad:</b> las máquinas solo funcionan conectadas a la red. Colócalas cerca del HUB o de un generador, o construye <b>postes eléctricos</b> para llevar los cables más lejos. Alimenta los quemadores con biomasa (arbustos y árboles) y los generadores de carbón por cinta. Si la demanda supera la generación, la red se sobrecarga.</li>
         <li><b>Objetivo:</b> completa los 6 hitos y envía la Fase 1 del Ascensor Espacial (~30 min).</li>
       </ol>
     </div>`;
@@ -334,23 +350,25 @@ function renderMenuSheet() {
 /* ---------------- Pistas (tutorial contextual) ---------------- */
 const HINTS = [
   { id: 'mine', cond: () => state.milestoneIndex === 0 && state.stats.mined < 10,
-    text: '⛏️ Toca un yacimiento (rocas grises al este del HUB) para picar mineral de hierro.' },
+    text: 'Toca un yacimiento (rocas grises al este del HUB) para picar mineral de hierro.' },
   { id: 'portable', cond: () => state.milestoneIndex === 0 && state.stats.mined >= 10 && !state.buildings.some(b => b.type === 'portable_miner'),
-    text: '🔨 Abre Construir y coloca un Taladro portátil sobre un yacimiento. ¡Es gratis!' },
+    text: 'Abre Construir y coloca un Taladro portátil sobre un yacimiento (cuesta 5 de mineral de hierro).' },
   { id: 'deliver0', cond: () => state.milestoneIndex === 0 && invCount('iron_ore') + (state.msProgress.iron_ore || 0) >= 30,
-    text: '🏠 Toca el HUB y entrega el mineral de hierro para completar el hito.' },
+    text: 'Toca el HUB y entrega el mineral de hierro para completar el hito.' },
   { id: 'smelter', cond: () => state.milestoneIndex === 1 && !state.buildings.some(b => b.type === 'smelter'),
-    text: '🔥 Fabrica varillas y alambre en el banco del HUB y construye una Fundidora.' },
+    text: 'Fabrica varillas y alambre en el banco del HUB y construye una Fundidora cerca del HUB (te dará sus 10 MW).' },
+  { id: 'noconn', cond: () => state.buildings.some(b => BUILDINGS[b.type].power < 0 && b._conn === false),
+    text: 'Hay máquinas sin conexión eléctrica: acércalas al HUB o a un generador, o únelas con postes eléctricos.' },
   { id: 'recipe', cond: () => state.buildings.some(b => MACH_RECIPES[b.type] && !b.recipe),
-    text: '⚙️ Tienes máquinas sin receta (icono "?"). Tócalas y asigna una receta.' },
+    text: 'Tienes máquinas sin receta (icono "?"). Tócalas y asigna una receta.' },
   { id: 'belts', cond: () => state.milestoneIndex === 2 && Object.keys(state.beltMap).length === 0,
-    text: '➡️ Usa el modo cintas para conectar mineros → máquinas → HUB y automatizar.' },
-  { id: 'power', cond: () => state.power.dem > state.power.sup && !state.buildings.some(b => BUILDINGS[b.type].power > 0),
-    text: '⚡ ¡Sin energía! Construye un Quemador de biomasa y cárgalo con biomasa (arbustos y árboles).' },
-  { id: 'fuel', cond: () => state.buildings.some(b => BUILDINGS[b.type].power > 0 && b.fuel <= 0 && b.burnLeft <= 0),
-    text: '🌿 Un generador no tiene combustible. Tócalo y cárgalo.' },
+    text: 'Usa el modo cintas para conectar mineros, máquinas y HUB y así automatizar.' },
+  { id: 'overload', cond: () => state.power.overload,
+    text: 'Red sobrecargada: construye más generadores (o aliméntalos) para cubrir la demanda.' },
+  { id: 'fuel', cond: () => state.buildings.some(b => BUILDINGS[b.type].fuelItem && b.fuel <= 0 && b.burnLeft <= 0),
+    text: 'Un generador no tiene combustible. Tócalo y cárgalo.' },
   { id: 'coal', cond: () => state.milestoneIndex >= 3 && !state.buildings.some(b => b.type === 'coal_generator'),
-    text: '⚡ El Generador de carbón (75 MW) se alimenta por cinta desde yacimientos de carbón, al este.' },
+    text: 'El Generador de carbón (75 MW) se alimenta por cinta desde los yacimientos de carbón, al este.' },
 ];
 
 function updateHint() {
@@ -384,11 +402,21 @@ function onUnlocksChanged() {
 }
 
 function initUI() {
-  $('invBtn').addEventListener('click', () => { unlockAudio(); ui.sheetKind === 'inventory' ? closeSheet() : openSheet('inventory', '🎒 Inventario'); });
-  $('menuBtn').addEventListener('click', () => { unlockAudio(); ui.sheetKind === 'menu' ? closeSheet() : openSheet('menu', '☰ Menú'); });
+  // iconos SVG de la interfaz (sin emojis)
+  $('powerStat').innerHTML = ICON_SVG.power + '<span id="powerVal"></span>';
+  $('msStat').innerHTML = ICON_SVG.milestone + '<span id="msVal"></span>';
+  $('invBtn').innerHTML = ICON_SVG.inventory;
+  $('menuBtn').innerHTML = ICON_SVG.menu;
+  $('sheetClose').innerHTML = ICON_SVG.close;
+  const modeIcons = { select: 'select', build: 'build', belt: 'belt', demolish: 'demolish' };
+  document.querySelectorAll('#modebar button').forEach(b => {
+    b.innerHTML = ICON_SVG[modeIcons[b.dataset.mode]];
+  });
+
+  $('invBtn').addEventListener('click', () => { unlockAudio(); ui.sheetKind === 'inventory' ? closeSheet() : openSheet('inventory', 'Inventario'); });
+  $('menuBtn').addEventListener('click', () => { unlockAudio(); ui.sheetKind === 'menu' ? closeSheet() : openSheet('menu', 'Menú'); });
   $('msStat').addEventListener('click', () => { unlockAudio(); openHubPanel('hitos'); });
   $('sheetClose').addEventListener('click', closeSheet);
-  $('fuseReset').addEventListener('click', rearmFuse);
   $('ghostOk').addEventListener('click', confirmGhost);
   $('ghostCancel').addEventListener('click', cancelGhost);
   $('vContinue').addEventListener('click', () => $('victory').classList.add('hidden'));

@@ -10,10 +10,10 @@ const cam = { x: 0, y: 0, z: 1 };   // x,y en píxeles de mundo (centro), z = zo
 const ZOOM_MIN = 0.35, ZOOM_MAX = 2.6;
 
 let groundCanvas = null;
-let floatTexts = [];   // {x,y,txt,t,color}
+let floatTexts = [];   // {x,y,txt,t,color,item}
 
-function addFloat(wx, wy, txt, color) {
-  floatTexts.push({ x: wx, y: wy, t: 0, txt, color: color || '#fff' });
+function addFloat(wx, wy, txt, color, item) {
+  floatTexts.push({ x: wx, y: wy, t: 0, txt, color: color || '#fff', item: item || null });
 }
 
 function resizeCanvas() {
@@ -115,7 +115,10 @@ function draw(t) {
 
   // sombras de entidades "altas"
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
-  for (const b of state.buildings) shadowRect(b);
+  for (const b of state.buildings) {
+    if (b.type === 'power_pole') shadowEllipse(b.x + 0.62, b.y + 0.82, 0.38, 0.18);
+    else shadowRect(b);
+  }
   for (const tr of state.world.trees) shadowEllipse(tr.x + 0.5, tr.y + 0.75, 0.55, 0.28);
   for (const r of state.world.rocks) shadowEllipse(r.x + 0.55, r.y + 0.7, 0.45 * r.s, 0.22 * r.s);
   for (const bu of state.world.bushes) if (bu.charges > 0) shadowEllipse(bu.x + 0.55, bu.y + 0.7, 0.4, 0.2);
@@ -129,6 +132,7 @@ function draw(t) {
   drawables.sort((a, b) => a.y - b.y);
   for (const d of drawables) d.f();
 
+  drawPowerCables(t);
   drawOverlays(t);
   drawGhost(t);
   drawFloatTexts(t);
@@ -235,11 +239,83 @@ function shade(hex, amt) {
   return `rgb(${r},${g},${b})`;
 }
 
+/* Punto de anclaje de los cables eléctricos de un edificio */
+function powerAttach(b) {
+  const def = BUILDINGS[b.type];
+  const x = b.x * TILE, y = b.y * TILE;
+  if (b.type === 'power_pole') return { x: x + TILE / 2, y: y - 30 };
+  if (b.type === 'hub') return { x: x + def.w * TILE - 14, y: y - 9 - 12 };
+  return { x: x + def.w * TILE / 2, y: y - 6 };
+}
+
+function drawPowerCables(t) {
+  if (!powerEdges.length) return;
+  for (const e of powerEdges) {
+    const pa = powerAttach(e.a), pb = powerAttach(e.b);
+    const dist = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+    const sag = 6 + dist * 0.09;
+    const mx = (pa.x + pb.x) / 2, my = (pa.y + pb.y) / 2 + sag;
+    ctx.strokeStyle = 'rgba(20,22,26,0.85)';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.quadraticCurveTo(mx, my, pb.x, pb.y);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(120,130,145,0.5)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y - 1);
+    ctx.quadraticCurveTo(mx, my - 1, pb.x, pb.y - 1);
+    ctx.stroke();
+  }
+}
+
+/* Zona de alcance eléctrico alrededor de una huella (para fantasma/selección) */
+function drawPowerRange(x, y, w, h, isRelay) {
+  const plug = PLUG_RANGE * TILE;
+  ctx.fillStyle = 'rgba(255,214,79,0.10)';
+  ctx.beginPath();
+  ctx.roundRect(x * TILE - plug, y * TILE - plug, w * TILE + plug * 2, h * TILE + plug * 2, plug);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,214,79,0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 5]);
+  ctx.stroke();
+  if (isRelay) {
+    const link = LINK_RANGE * TILE;
+    ctx.strokeStyle = 'rgba(120,190,255,0.45)';
+    ctx.beginPath();
+    ctx.roundRect(x * TILE - link, y * TILE - link, w * TILE + link * 2, h * TILE + link * 2, link);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
 function drawBuilding(b, t) {
   const def = BUILDINGS[b.type];
   const x = b.x * TILE, y = b.y * TILE;
   const w = def.w * TILE, h = def.h * TILE;
   const ext = 9; // extrusión vertical (pseudo-3D)
+
+  if (b.type === 'power_pole') {
+    const cx0 = x + TILE / 2;
+    // base
+    ctx.fillStyle = '#3a3d33';
+    ctx.beginPath(); ctx.ellipse(cx0, y + TILE * 0.72, 9, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // mástil
+    ctx.fillStyle = '#4e3a22';
+    ctx.fillRect(cx0 - 3.5, y - 30, 7, TILE * 0.72 + 30);
+    ctx.fillStyle = '#6f522f';
+    ctx.fillRect(cx0 - 2, y - 30, 3, TILE * 0.72 + 30);
+    // travesaño
+    ctx.fillStyle = '#5d4326';
+    ctx.beginPath(); ctx.roundRect(cx0 - 13, y - 27, 26, 5, 2); ctx.fill();
+    // aisladores
+    ctx.fillStyle = '#c9cdd4';
+    ctx.beginPath(); ctx.arc(cx0 - 9, y - 28, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx0 + 9, y - 28, 2.5, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
 
   // cara frontal (pared)
   ctx.fillStyle = shade(def.color, -0.35);
@@ -315,12 +391,10 @@ function drawBuilding(b, t) {
     let total = 0; for (const k in b.store) total += b.store[k];
     drawBar(x + 3, y + h - ext - 6, w - 6, 4, total / def.cap, '#8fd14f');
   } else if (b.type === 'biomass_burner' || b.type === 'coal_generator') {
-    const on = (b.burnLeft > 0 || b.fuel > 0) && !state.fuse;
+    const on = b.burnLeft > 0 || b.fuel > 0;
     ctx.fillStyle = on ? '#ffe07a' : '#3a3a3a';
-    ctx.beginPath(); ctx.arc(cx, cy - 2, 8, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = on ? '#c98a2a' : '#222';
-    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('⚡', cx, cy - 2);
+    ctx.beginPath(); ctx.arc(cx, cy - 2, 9, 0, Math.PI * 2); ctx.fill();
+    drawBoltShape(ctx, cx, cy - 2, 6, on ? '#8a5c14' : '#222');
     drawBar(x + 3, y + h - ext - 6, w - 6, 4, b.fuel / 50, '#e8a34f');
     if (on) {
       // humo
@@ -333,20 +407,15 @@ function drawBuilding(b, t) {
   // icono de estado
   if (MACH_RECIPES[b.type] && !b.recipe) {
     bounceIcon(cx, y - ext - 10, t, '#ffd64f', '?');
-  } else if (needsPowerIcon(b)) {
-    bounceIcon(cx, y - ext - 10, t, '#ff6655', '⚡');
+  } else if (def.power < 0) {
+    if (!b._conn) boltIcon(cx, y - ext - 10, t, '#b9bfc7', '#41454c');          // sin conexión a la red
+    else if (!b._pw && machineWants(b)) boltIcon(cx, y - ext - 10, t, '#ff6655', '#4d1410'); // red sin energía
   }
 
   // barra de progreso
   if (MACH_RECIPES[b.type] && b.recipe) {
     drawBar(x + 3, y - ext - 4, w - 6, 4, b.working ? b.progress : 0, '#6fd3ff');
   }
-}
-
-function needsPowerIcon(b) {
-  const def = BUILDINGS[b.type];
-  if (def.power >= 0) return false;
-  return state.fuse || state.power.dem > state.power.sup;
 }
 
 function bounceIcon(cx, cy, t, color, txt) {
@@ -356,6 +425,13 @@ function bounceIcon(cx, cy, t, color, txt) {
   ctx.fillStyle = '#222';
   ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(txt, cx, cy + dy + 0.5);
+}
+
+function boltIcon(cx, cy, t, bg, fg) {
+  const dy = Math.sin(t / 250) * 2;
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(cx, cy + dy, 8, 0, Math.PI * 2); ctx.fill();
+  drawBoltShape(ctx, cx, cy + dy, 5.5, fg);
 }
 
 function drawBar(x, y, w, h, p, color) {
@@ -420,6 +496,9 @@ function drawOverlays(t) {
     const b = ui.selected;
     if (state.buildings.includes(b)) {
       const def = BUILDINGS[b.type];
+      if (def.pole || def.power !== 0) {
+        drawPowerRange(b.x, b.y, def.w, def.h, def.pole || def.power > 0);
+      }
       const pulse = 2 + Math.sin(t / 250) * 1.5;
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
@@ -456,6 +535,9 @@ function drawGhost(t) {
   const ok = chk.ok && afford;
   const gx = (chk.ok && chk.x !== undefined) ? chk.x : g.x;
   const gy = (chk.ok && chk.y !== undefined) ? chk.y : g.y;
+  if (def.pole || def.power !== 0) {
+    drawPowerRange(gx, gy, def.w, def.h, def.pole || def.power > 0);
+  }
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = def.roof || def.color;
   ctx.beginPath(); ctx.roundRect(gx * TILE, gy * TILE - 9, def.w * TILE, def.h * TILE + 9, 5); ctx.fill();
@@ -475,15 +557,30 @@ function drawFloatTexts(dt) {
   const now = performance.now();
   floatTexts = floatTexts.filter(f => {
     if (!f.start) f.start = now;
-    const p = (now - f.start) / 1100;
+    const p = (now - f.start) / 1250;
     if (p >= 1) return false;
+    const ty = f.y - p * 28;
     ctx.globalAlpha = 1 - p;
-    ctx.fillStyle = f.color;
     ctx.font = 'bold 14px sans-serif';
+    const tw = ctx.measureText(f.txt).width;
+    let tx = f.x;
+    if (f.item) {
+      // icono del material + texto, centrados en conjunto
+      const iconS = 10, gap = 5;
+      const total = iconS * 2 + gap + tw;
+      const startX = f.x - total / 2;
+      ctx.fillStyle = 'rgba(15,18,15,0.65)';
+      ctx.beginPath();
+      ctx.roundRect(startX - 7, ty - 15, total + 14, 26, 13);
+      ctx.fill();
+      drawItemShape(ctx, f.item, startX + iconS, ty - 2, iconS);
+      tx = startX + iconS * 2 + gap + tw / 2;
+    }
+    ctx.fillStyle = f.color;
     ctx.textAlign = 'center';
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3;
-    ctx.strokeText(f.txt, f.x, f.y - p * 26);
-    ctx.fillText(f.txt, f.x, f.y - p * 26);
+    ctx.strokeText(f.txt, tx, ty);
+    ctx.fillText(f.txt, tx, ty);
     ctx.globalAlpha = 1;
     return true;
   });

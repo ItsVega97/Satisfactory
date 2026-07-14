@@ -31,7 +31,11 @@ canvas#game { position: fixed; inset: 0; display: block; touch-action: none; }
   pointer-events: auto;
   white-space: nowrap;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
+.stat svg { width: 17px; height: 17px; flex-shrink: 0; }
 #msStat {
   flex-shrink: 1;
   overflow: hidden; text-overflow: ellipsis;
@@ -59,21 +63,18 @@ button.stat { cursor: pointer; }
 }
 
 /* ---------- Fusible ---------- */
-#fuseBanner {
+#powerBanner {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 96px);
   left: 50%; transform: translateX(-50%);
+  max-width: 92vw;
   background: rgba(160, 40, 30, 0.95);
   color: #fff;
   border-radius: 10px;
   padding: 10px 14px;
-  font-size: 14px; font-weight: 700;
+  font-size: 13.5px; font-weight: 700;
+  text-align: center;
   z-index: 21;
-  display: flex; gap: 10px; align-items: center;
-}
-#fuseBanner button {
-  background: #ffd64f; border: none; border-radius: 8px;
-  padding: 8px 14px; font-weight: 700; font-size: 14px; cursor: pointer;
 }
 
 /* ---------- Barra de modos ---------- */
@@ -86,13 +87,14 @@ button.stat { cursor: pointer; }
 }
 #modebar button {
   width: 52px; height: 52px;
-  font-size: 22px;
   background: rgba(20, 26, 20, 0.85);
   border: 2px solid rgba(255,255,255,0.15);
   border-radius: 14px;
   cursor: pointer;
-  color: #fff;
+  color: #e8e6d8;
+  display: flex; align-items: center; justify-content: center;
 }
+#modebar button svg { width: 26px; height: 26px; }
 #modebar button.active {
   background: rgba(230, 150, 40, 0.9);
   border-color: #ffd64f;
@@ -139,7 +141,8 @@ button.stat { cursor: pointer; }
 }
 .pal-item.sel { border-color: #ffd64f; background: rgba(230,150,40,0.25); }
 .pal-item.locked { opacity: 0.55; }
-.pal-emoji { font-size: 22px; }
+.pal-img { width: 44px; height: 44px; image-rendering: auto; }
+.pal-item.locked .pal-img { filter: grayscale(1) brightness(0.6); }
 .pal-name { font-size: 11px; font-weight: 700; text-align: center; }
 .pal-cost { font-size: 9.5px; color: #a8c49a; text-align: center; line-height: 1.25; }
 .pal-cost.bad { color: #ff9080; }
@@ -164,8 +167,12 @@ button.stat { cursor: pointer; }
 }
 #sheetClose {
   background: rgba(255,255,255,0.1); border: none; color: #fff;
-  width: 34px; height: 34px; border-radius: 10px; font-size: 16px; cursor: pointer;
+  width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
+#sheetClose svg { width: 18px; height: 18px; }
+#sheetTitle { display: inline-flex; align-items: center; gap: 8px; }
+.title-img { width: 30px; height: 30px; }
 #sheetBody {
   overflow-y: auto;
   padding: 10px 14px calc(env(safe-area-inset-bottom, 0px) + 14px) 14px;
@@ -210,12 +217,10 @@ button.stat { cursor: pointer; }
 .btn.danger { background: #a33d33; }
 .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.chip { display: inline-flex; align-items: center; gap: 4px; margin-right: 4px; font-size: 13px; }
-.dot {
-  display: inline-block; width: 12px; height: 12px;
-  border-radius: 50%; border: 2px solid;
-}
-.dot.big { width: 22px; height: 22px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; font-size: 13px; }
+.icico { width: 20px; height: 20px; border-radius: 5px; }
+.inv-img { width: 34px; height: 34px; }
+.warn { color: #ffb0a0; font-size: 12.5px; font-weight: 600; }
 
 .recipe-list { display: flex; flex-direction: column; gap: 6px; }
 .recipe-btn {
@@ -246,22 +251,27 @@ button.stat { cursor: pointer; }
 .help-box ol { padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 
 /* ---------- Toast ---------- */
-#toast {
+#toasts {
   position: fixed;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 130px);
-  left: 50%; transform: translateX(-50%) translateY(20px);
+  left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  z-index: 30;
+  pointer-events: none;
   max-width: 90vw;
+}
+.toast {
   background: rgba(10, 14, 10, 0.92);
   color: #fff;
   border-radius: 10px;
   padding: 10px 18px;
   font-size: 13.5px;
   text-align: center;
-  opacity: 0; transition: all 0.25s;
-  z-index: 30;
-  pointer-events: none;
+  opacity: 0; transform: translateY(14px);
+  transition: opacity 0.3s, transform 0.3s;
+  max-width: 90vw;
 }
-#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.show { opacity: 1; transform: translateY(0); }
 
 /* ---------- Victoria ---------- */
 #victory {

@@ -2,8 +2,9 @@
    Factoría 2D — Lógica del juego (estado, simulación, construcción)
    ========================================================= */
 
-const SAVE_KEY = 'factoria2d_save_v1';
+const SAVE_KEY = 'factoria2d_save_v2';
 let state = null;
+let powerEdges = [];   // conexiones eléctricas activas [{a,b}] (para dibujar cables)
 
 const DIRS = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
 const DIR_LIST = ['E', 'S', 'W', 'N'];
@@ -16,7 +17,7 @@ function opposite(d) { return { E: 'W', W: 'E', N: 'S', S: 'N' }[d]; }
 /* ---------------- Nueva partida ---------------- */
 function newGame() {
   state = {
-    version: 1,
+    version: 2,
     time: 0,
     playTime: 0,
     inventory: {},
@@ -28,8 +29,7 @@ function newGame() {
     msProgress: {},       // item -> entregado (del hito actual)
     unlockedB: ['portable_miner'],
     unlockedR: [],
-    fuse: false,
-    power: { sup: 0, dem: 0 },
+    power: { sup: 0, dem: 0, overload: false },
     victory: false,
     victoryShown: false,
     stats: { mined: 0, crafted: 0, built: 0, produced: 0, delivered: 0 },
@@ -269,28 +269,105 @@ function pushToBelts(b, getItem) {
   }
 }
 
-/* ---------------- Energía ---------------- */
+/* ---------------- Energía: red eléctrica con postes y cables ----------------
+   Nodos: generadores (con power>0, incl. HUB), postes y máquinas consumidoras.
+   Enlaces (por hueco entre huellas, en tiles):
+     poste ↔ poste/generador/HUB  ≤ LINK_RANGE
+     máquina ↔ poste/generador/HUB ≤ PLUG_RANGE
+   Cada componente conexa es una red con su generación/demanda propia. */
+
+function isPowerSource(b) { return BUILDINGS[b.type].power > 0; }
+function isPowerConsumer(b) { return BUILDINGS[b.type].power < 0; }
+function isPole(b) { return !!BUILDINGS[b.type].pole; }
+
+/* Hueco entre las huellas de dos edificios, en tiles */
+function buildingGap(a, b) {
+  const da = BUILDINGS[a.type], db = BUILDINGS[b.type];
+  const gx = Math.max(0, Math.max(b.x - (a.x + da.w), a.x - (b.x + db.w)));
+  const gy = Math.max(0, Math.max(b.y - (a.y + da.h), a.y - (b.y + db.h)));
+  return Math.hypot(gx, gy);
+}
+
+function powerLinkRange(a, b) {
+  const relayA = isPole(a) || isPowerSource(a);
+  const relayB = isPole(b) || isPowerSource(b);
+  if (relayA && relayB) return LINK_RANGE;      // poste/generador entre sí
+  if (relayA || relayB) return PLUG_RANGE;      // máquina enchufada a poste/generador
+  return -1;                                    // máquina-máquina: sin enlace
+}
+
+let _wasOverloaded = false;
+
 function computePower() {
-  let sup = 0, dem = 0;
-  for (const b of state.buildings) {
-    const def = BUILDINGS[b.type];
-    if (def.power > 0) {
-      if (b.fuel > 0 || b.burnLeft > 0) sup += def.power;
-    } else if (def.power < 0) {
-      if (machineWants(b)) dem += -def.power;
+  const nodes = state.buildings.filter(b => isPowerSource(b) || isPowerConsumer(b) || isPole(b));
+  powerEdges = [];
+  const adj = new Map();
+  nodes.forEach(n => adj.set(n.id, []));
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      const range = powerLinkRange(a, b);
+      if (range < 0) continue;
+      if (buildingGap(a, b) <= range) {
+        adj.get(a.id).push(b);
+        adj.get(b.id).push(a);
+        // solo dibujar cables que involucren un relé (poste/generador/HUB)
+        powerEdges.push({ a, b });
+      }
     }
   }
-  state.power.sup = sup;
-  state.power.dem = dem;
-  if (dem > sup && !state.fuse) {
-    state.fuse = true;
-    sfx('error');
-    toast('¡Fusible fundido! Añade generación y rearma (⚡)');
+
+  // componentes conexas
+  const seen = new Set();
+  let totSup = 0, totDem = 0, overload = false;
+  for (const n of nodes) {
+    if (isPowerConsumer(n)) { n._pw = false; n._conn = false; }
+    if (isPowerSource(n)) n._burnF = 0;
   }
+  for (const start of nodes) {
+    if (seen.has(start.id)) continue;
+    const comp = [];
+    const queue = [start];
+    seen.add(start.id);
+    while (queue.length) {
+      const cur = queue.pop();
+      comp.push(cur);
+      for (const nb of adj.get(cur.id)) {
+        if (!seen.has(nb.id)) { seen.add(nb.id); queue.push(nb); }
+      }
+    }
+    let sup = 0, dem = 0, hasSource = false;
+    for (const b of comp) {
+      const def = BUILDINGS[b.type];
+      if (isPowerSource(b)) {
+        hasSource = true;
+        const active = !def.fuelItem || b.fuel > 0 || b.burnLeft > 0;
+        if (active) sup += def.power;
+      } else if (isPowerConsumer(b) && machineWants(b)) {
+        dem += -def.power;
+      }
+    }
+    const ok = sup > 0 && dem <= sup;
+    if (sup > 0 && dem > sup) overload = true;
+    const burnF = sup > 0 ? Math.min(1, dem / sup) : 0;
+    for (const b of comp) {
+      if (isPowerConsumer(b)) { b._pw = ok; b._conn = hasSource; }
+      if (isPowerSource(b)) b._burnF = burnF;
+    }
+    totSup += sup;
+    totDem += dem;
+  }
+  state.power.sup = totSup;
+  state.power.dem = totDem;
+  state.power.overload = overload;
+  if (overload && !_wasOverloaded) {
+    sfx('error');
+    toast('Red sobrecargada: la demanda supera la generación. Añade o alimenta generadores.');
+  }
+  _wasOverloaded = overload;
 }
 
 function machineWants(b) {
-  const def = BUILDINGS[b.type];
   if (b.type === 'miner1') return b.buf < OUT_CAP;
   if (b.working) return true;
   if (!b.recipe) return false;
@@ -298,12 +375,6 @@ function machineWants(b) {
   for (const k in r.in) if ((b.inBuf[k] || 0) < r.in[k]) return false;
   for (const k in r.out) if ((b.outBuf[k] || 0) + r.out[k] > OUT_CAP) return false;
   return true;
-}
-
-function rearmFuse() {
-  state.fuse = false;
-  toast('Fusible rearmado');
-  sfx('click');
 }
 
 /* ---------------- Simulación ---------------- */
@@ -321,15 +392,13 @@ function tick(dt) {
   }
 
   computePower();
-  const powerOK = !state.fuse && state.power.dem <= state.power.sup;
 
-  // generadores: quemar combustible según demanda
-  const burnFactor = state.power.sup > 0 ? Math.min(1, state.power.dem / state.power.sup) : 0;
+  // generadores: quemar combustible según la demanda de su red
   for (const b of state.buildings) {
     const def = BUILDINGS[b.type];
-    if (def.power <= 0 || state.fuse) continue;
+    if (def.power <= 0 || !def.fuelItem) continue;
     if (b.burnLeft <= 0 && b.fuel > 0) { b.fuel--; b.burnLeft = def.burnTime; }
-    if (b.burnLeft > 0) b.burnLeft -= dt * Math.max(0.05, burnFactor);
+    if (b.burnLeft > 0) b.burnLeft -= dt * Math.max(0.05, b._burnF || 0);
   }
 
   // cintas: mover objetos
@@ -379,7 +448,7 @@ function tick(dt) {
     }
 
     if (b.type === 'miner1') {
-      if (powerOK && b.buf < OUT_CAP) {
+      if (b._pw && b.buf < OUT_CAP) {
         b.progress += def.rate * dt;
         while (b.progress >= 1 && b.buf < OUT_CAP) { b.progress -= 1; b.buf++; state.stats.produced++; }
         if (b.buf >= OUT_CAP) b.progress = Math.min(b.progress, 1);
@@ -403,7 +472,7 @@ function tick(dt) {
             b.working = true; b.progress = 0;
           }
         }
-        if (b.working && powerOK) {
+        if (b.working && b._pw) {
           b.progress += dt / r.time;
           if (b.progress >= 1) {
             for (const k2 in r.out) {
@@ -553,7 +622,7 @@ function checkMilestone() {
     state.victory = true;
     onVictory();
   } else {
-    toast('🎉 Hito completado: ' + ms.name);
+    toast('Hito completado: ' + ms.name);
     const next = currentMilestone();
     if (next) toast('Nuevo hito: ' + next.name);
     onUnlocksChanged();
@@ -574,7 +643,7 @@ function loadGame() {
     const s = localStorage.getItem(SAVE_KEY);
     if (!s) return false;
     const data = JSON.parse(s);
-    if (!data || data.version !== 1) return false;
+    if (!data || data.version !== 2) return false;
     state = data;
     return true;
   } catch (e) { return false; }

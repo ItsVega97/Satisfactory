@@ -11,6 +11,10 @@ const BELT_SPEED = 2.0;     // tiles / segundo
 const BELT_SPACING = 0.45;  // separación mínima entre objetos en cinta
 const OUT_CAP = 50;         // capacidad de búfer de salida de las máquinas
 
+/* Red eléctrica: distancias máximas de conexión (huecos entre edificios, en tiles) */
+const PLUG_RANGE = 3.5;   // máquina ↔ poste / generador / HUB
+const LINK_RANGE = 6;     // poste ↔ poste / generador / HUB
+
 /* ---------------- Objetos ---------------- */
 const ITEMS = {
   iron_ore:         { name: 'Mineral de hierro',  color: '#9aa3b5', ring: '#6e7787' },
@@ -49,58 +53,68 @@ const RECIPES = {
    power: MW (negativo consume, positivo genera). rate en objetos/seg (mineros). */
 const BUILDINGS = {
   hub: {
-    name: 'HUB', w: 4, h: 3, cost: {}, power: 0, emoji: '🏠',
-    color: '#c9a86a', roof: '#e0c084', desc: 'Centro de mando. Entrega objetos para completar hitos y fabrica a mano en su banco.',
+    name: 'HUB', w: 4, h: 3, cost: {}, power: 10,
+    color: '#c9a86a', roof: '#e0c084',
+    desc: 'Centro de mando. Entrega objetos para completar hitos y fabrica a mano en su banco. Suministra 10 MW a los edificios conectados.',
     buildable: false,
   },
   portable_miner: {
-    name: 'Taladro portátil', w: 1, h: 1, cost: {}, power: 0, emoji: '⛏️',
+    name: 'Taladro portátil', w: 1, h: 1, cost: { iron_ore: 5 }, power: 0,
     color: '#8c8f5a', roof: '#a9ac74', limit: 6, rate: 0.25, cap: 40,
-    desc: 'Colócalo sobre un yacimiento. Extrae lentamente; toca para recoger. Máx. 6.',
+    desc: 'Colócalo sobre un yacimiento. Extrae lentamente sin electricidad; toca para recoger. Máx. 6.',
     buildable: true,
   },
   miner1: {
-    name: 'Minero Mk.1', w: 2, h: 2, cost: { plate: 10, rod: 5 }, power: -5, emoji: '🛠️',
+    name: 'Minero Mk.1', w: 2, h: 2, cost: { plate: 10, rod: 5 }, power: -5,
     color: '#8a7a5a', roof: '#a4936d', rate: 1.0,
-    desc: 'Extrae 60/min de un yacimiento. Saca por cintas. Requiere 5 MW.',
+    desc: 'Extrae 60/min de un yacimiento y lo saca por cintas. Requiere 5 MW y conexión a la red eléctrica.',
     buildable: true,
   },
   smelter: {
-    name: 'Fundidora', w: 2, h: 2, cost: { rod: 5, wire: 8 }, power: -4, emoji: '🔥',
-    color: '#b06a3c', roof: '#cd8451', desc: 'Funde mineral en lingotes. Requiere 4 MW.',
+    name: 'Fundidora', w: 2, h: 2, cost: { rod: 5, wire: 8 }, power: -4,
+    color: '#b06a3c', roof: '#cd8451',
+    desc: 'Funde mineral en lingotes. Requiere 4 MW y conexión a la red eléctrica.',
     buildable: true,
   },
   constructor: {
-    name: 'Constructor', w: 2, h: 2, cost: { plate: 8, wire: 8 }, power: -4, emoji: '🏭',
-    color: '#4f7290', roof: '#6289a9', desc: 'Fabrica piezas básicas a partir de un ingrediente. Requiere 4 MW.',
+    name: 'Constructor', w: 2, h: 2, cost: { plate: 8, wire: 8 }, power: -4,
+    color: '#4f7290', roof: '#6289a9',
+    desc: 'Fabrica piezas básicas a partir de un ingrediente. Requiere 4 MW y conexión a la red eléctrica.',
     buildable: true,
   },
   assembler: {
-    name: 'Ensambladora', w: 3, h: 3, cost: { plate: 12, cable: 8, concrete: 10 }, power: -15, emoji: '⚙️',
-    color: '#7a5f96', roof: '#9377b3', desc: 'Combina dos ingredientes en piezas avanzadas. Requiere 15 MW.',
+    name: 'Ensambladora', w: 3, h: 3, cost: { plate: 12, cable: 8, concrete: 10 }, power: -15,
+    color: '#7a5f96', roof: '#9377b3',
+    desc: 'Combina dos ingredientes en piezas avanzadas. Requiere 15 MW y conexión a la red eléctrica.',
     buildable: true,
   },
   conveyor: {
-    name: 'Cinta transportadora', w: 1, h: 1, cost: { plate: 1 }, power: 0, emoji: '➡️',
+    name: 'Cinta transportadora', w: 1, h: 1, cost: { plate: 1 }, power: 0,
     color: '#555a63', roof: '#555a63', desc: 'Transporta objetos entre edificios. 1 placa por tramo.',
     buildable: true, isBelt: true,
   },
   storage: {
-    name: 'Contenedor', w: 2, h: 2, cost: { plate: 10, rod: 5 }, power: 0, emoji: '📦',
+    name: 'Contenedor', w: 2, h: 2, cost: { plate: 10, rod: 5 }, power: 0,
     color: '#9aa3ad', roof: '#b5bec8', cap: 400,
-    desc: 'Almacena hasta 400 objetos. Acepta y expulsa por cintas.',
+    desc: 'Almacena hasta 400 objetos. Acepta y expulsa por cintas. No necesita electricidad.',
+    buildable: true,
+  },
+  power_pole: {
+    name: 'Poste eléctrico', w: 1, h: 1, cost: { rod: 1, wire: 3 }, power: 0, pole: true,
+    color: '#6f522f', roof: '#6f522f',
+    desc: 'Extiende la red eléctrica con cables: enlaza con generadores, el HUB y otros postes (hasta ' + LINK_RANGE + ' casillas) y da corriente a las máquinas cercanas (' + PLUG_RANGE + ' casillas).',
     buildable: true,
   },
   biomass_burner: {
-    name: 'Quemador de biomasa', w: 2, h: 2, cost: { plate: 8, rod: 4 }, power: 20, emoji: '🌿',
+    name: 'Quemador de biomasa', w: 2, h: 2, cost: { plate: 8, rod: 4 }, power: 20,
     color: '#6f8a4a', roof: '#88a55f', burnTime: 12, fuelItem: 'biomass',
-    desc: 'Genera 20 MW quemando biomasa. Se carga a mano (toca el edificio).',
+    desc: 'Genera 20 MW quemando biomasa. Se carga a mano (toca el edificio). Conéctalo con postes.',
     buildable: true,
   },
   coal_generator: {
-    name: 'Generador de carbón', w: 3, h: 2, cost: { plate: 20, concrete: 10, cable: 10 }, power: 75, emoji: '⚡',
+    name: 'Generador de carbón', w: 3, h: 2, cost: { plate: 20, concrete: 10, cable: 10 }, power: 75,
     color: '#4a505a', roof: '#5f6672', burnTime: 4, fuelItem: 'coal',
-    desc: 'Genera 75 MW quemando carbón. Acepta carbón por cinta.',
+    desc: 'Genera 75 MW quemando carbón. Acepta carbón por cinta. Conéctalo con postes.',
     buildable: true,
   },
 };
@@ -130,7 +144,7 @@ const MILESTONES = [
     name: 'Automatización',
     desc: 'Produce placas y varillas. Desbloquea mineros automáticos y energía.',
     req: { plate: 30, rod: 30 },
-    unlocks: { buildings: ['miner1', 'biomass_burner'], recipes: ['cable', 'concrete'] },
+    unlocks: { buildings: ['miner1', 'biomass_burner', 'power_pole'], recipes: ['cable', 'concrete'] },
   },
   {
     name: 'Electrónica',
