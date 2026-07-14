@@ -48,7 +48,9 @@ function updateTopbar() {
   $('powerBanner').classList.toggle('hidden', !p.overload);
 
   const ms = currentMilestone();
-  if (ms) {
+  if (!hubBuilt()) {
+    $('msVal').textContent = 'Construye el HUB';
+  } else if (ms) {
     let done = 0, total = 0;
     for (const k in ms.req) { total += ms.req[k]; done += Math.min(ms.req[k], state.msProgress[k] || 0); }
     $('msVal').textContent = `${ms.name} · ${Math.floor(done / total * 100)}%`;
@@ -64,7 +66,12 @@ function updateMissionHud() {
   const el = $('missionHud');
   const ms = currentMilestone();
   let html;
-  if (!ms) {
+  if (!hubBuilt()) {
+    const w = state.world.wreck;
+    const step = w && !w.salvaged ? 'Recupera los restos de la nave' : 'Construye el HUB';
+    html = `<div class="mh-title">Misión: ${step}</div>
+      <div class="mh-reqs"><span class="mh-req"><img src="${buildingIconURL('hub')}" alt="HUB">0/1</span></div>`;
+  } else if (!ms) {
     html = `<div class="mh-title">Misiones completadas</div>
       <div class="mh-reqs"><span class="mh-req ok">¡Ascensor Espacial terminado!</span></div>`;
   } else {
@@ -87,6 +94,7 @@ function rebuildPalette() {
   const pal = $('palette');
   pal.innerHTML = '';
   const order = ['portable_miner', 'miner1', 'miner2', 'smelter', 'foundry', 'constructor', 'assembler', 'storage', 'power_pole', 'biomass_burner', 'coal_generator'];
+  if (!hubBuilt()) order.unshift('hub');
   for (const id of order) {
     const def = BUILDINGS[id];
     const unlocked = state.unlockedB.includes(id);
@@ -172,6 +180,7 @@ function refreshSheet() {
 
 /* ---------------- Panel del HUB ---------------- */
 function openHubPanel(tab) {
+  if (!hubBuilt()) { toast('Aún no has construido el HUB.'); return; }
   if (tab) ui.hubTab = tab;
   openSheet('hub', `<img class="title-img" src="${buildingIconURL('hub')}" alt=""> HUB de FICSIT`);
 }
@@ -421,8 +430,12 @@ function renderMenuSheet() {
 
 /* ---------------- Pistas (tutorial contextual) ---------------- */
 const HINTS = [
+  { id: 'salvage', cond: () => state.world.wreck && !state.world.wreck.salvaged,
+    text: 'Tu nave se ha estrellado. Toca los restos humeantes para recuperar las piezas útiles.' },
+  { id: 'buildhub', cond: () => !hubBuilt(),
+    text: 'Con las piezas recuperadas, construye el HUB (modo Construir): será tu base y te dará el pico.' },
   { id: 'mine', cond: () => state.milestoneIndex === 0 && state.stats.mined < 10,
-    text: 'Toca un yacimiento de hierro (rocas grises cerca del HUB) para picar mineral.' },
+    text: 'El HUB te ha entregado el pico. Toca un yacimiento de hierro (rocas grises) para picar mineral.' },
   { id: 'portable', cond: () => state.milestoneIndex === 0 && state.stats.mined >= 10 && !state.buildings.some(b => b.type === 'portable_miner'),
     text: 'Abre Construir y coloca un Taladro portátil sobre un yacimiento (cuesta 5 de mineral de hierro).' },
   { id: 'deliver0', cond: () => state.milestoneIndex === 0 && invCount('iron_ore') + (state.msProgress.iron_ore || 0) >= 30,

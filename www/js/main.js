@@ -85,9 +85,9 @@ function boot() {
   window.addEventListener('beforeunload', saveGame);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
 
-  if (!loaded) {
-    setTimeout(() => toast('Bienvenido, ingeniero. Pica hierro tocando los yacimientos junto al HUB.'), 600);
-  } else {
+  if (!state.introDone) {
+    startIntro();
+  } else if (loaded) {
     toast('Partida cargada. ¡Seguimos construyendo!');
   }
 

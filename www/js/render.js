@@ -80,6 +80,22 @@ function buildGround() {
     g.arc(w.x * TILE, w.y * TILE, w.r * TILE, 0, Math.PI * 2);
     g.stroke();
   }
+  // surco quemado del aterrizaje forzoso
+  if (state.world.wreck) {
+    const wk = state.world.wreck;
+    const wx = (wk.x + 2) * TILE, wy = (wk.y + 1) * TILE;
+    for (let i = 0; i < 6; i++) {
+      g.fillStyle = `rgba(45,32,22,${0.42 - i * 0.06})`;
+      g.beginPath();
+      g.ellipse(wx - 34 - i * 26, wy + 6 + i * 2, 26 - i * 2.5, 12 - i * 1.2, -0.08, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = 'rgba(45,32,22,0.5)';
+    g.beginPath();
+    g.ellipse(wx, wy + 8, TILE * 2.3, TILE * 0.9, -0.05, 0, Math.PI * 2);
+    g.fill();
+  }
+
   // tinte bajo yacimientos
   for (const n of state.world.nodes) {
     g.fillStyle = 'rgba(70,55,40,0.45)';
@@ -119,6 +135,7 @@ function draw(t) {
     if (b.type === 'power_pole') shadowEllipse(b.x + 0.62, b.y + 0.82, 0.38, 0.18);
     else shadowRect(b);
   }
+  if (state.world.wreck) shadowEllipse(state.world.wreck.x + 2, state.world.wreck.y + 1.35, 1.9, 0.55);
   for (const tr of state.world.trees) shadowEllipse(tr.x + 0.5, tr.y + 0.75, 0.55, 0.28);
   for (const r of state.world.rocks) shadowEllipse(r.x + 0.55, r.y + 0.7, 0.45 * r.s, 0.22 * r.s);
   for (const bu of state.world.bushes) if (bu.charges > 0) shadowEllipse(bu.x + 0.55, bu.y + 0.7, 0.4, 0.2);
@@ -126,6 +143,7 @@ function draw(t) {
   // cuerpos ordenados por Y (para solapado correcto)
   const drawables = [];
   for (const b of state.buildings) drawables.push({ y: b.y + BUILDINGS[b.type].h, f: () => drawBuilding(b, t) });
+  if (state.world.wreck) drawables.push({ y: state.world.wreck.y + 2, f: () => drawWreck(state.world.wreck, t) });
   for (const tr of state.world.trees) drawables.push({ y: tr.y + 1, f: () => drawTree(tr) });
   for (const r of state.world.rocks) drawables.push({ y: r.y + 1, f: () => drawRock(r) });
   for (const bu of state.world.bushes) drawables.push({ y: bu.y + 1, f: () => drawBush(bu) });
@@ -598,6 +616,51 @@ function drawBar(x, y, w, h, p, color) {
     ctx.fillStyle = color;
     ctx.beginPath(); ctx.roundRect(x + 1, y + 1, (w - 2) * p, h - 2, 2); ctx.fill();
   }
+}
+
+/* ---------------- Nave estrellada ---------------- */
+function drawWreck(wk, t) {
+  const cx = (wk.x + 2) * TILE, cy = (wk.y + 1) * TILE;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-0.14);
+  const S = TILE * 1.85;
+  // casco
+  ctx.fillStyle = wk.salvaged ? '#79828c' : '#8f98a3';
+  ctx.beginPath(); ctx.roundRect(-S * 0.62, -S * 0.26, S * 1.24, S * 0.52, S * 0.24); ctx.fill();
+  ctx.fillStyle = wk.salvaged ? '#525a63' : '#5f6871';
+  ctx.beginPath(); ctx.roundRect(-S * 0.6, 0, S * 1.2, S * 0.24, S * 0.12); ctx.fill();
+  // morro hundido en la tierra
+  ctx.fillStyle = '#6b4a2f';
+  ctx.beginPath(); ctx.ellipse(S * 0.62, S * 0.1, S * 0.28, S * 0.2, 0.3, 0, Math.PI * 2); ctx.fill();
+  // aleta rota
+  ctx.fillStyle = '#c07a42';
+  ctx.beginPath();
+  ctx.moveTo(-S * 0.3, -S * 0.24); ctx.lineTo(-S * 0.52, -S * 0.5); ctx.lineTo(-S * 0.12, -S * 0.24);
+  ctx.closePath(); ctx.fill();
+  // ventana agrietada
+  ctx.fillStyle = '#2c3a46';
+  ctx.beginPath(); ctx.arc(S * 0.12, -S * 0.02, S * 0.15, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(220,230,240,0.6)'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(S * 0.04, -S * 0.1); ctx.lineTo(S * 0.16, S * 0.02); ctx.lineTo(S * 0.1, S * 0.1);
+  ctx.stroke();
+  // panel abierto si ya se recuperaron las piezas
+  if (wk.salvaged) {
+    ctx.strokeStyle = '#3a4149'; ctx.lineWidth = 2;
+    ctx.strokeRect(-S * 0.42, -S * 0.14, S * 0.24, S * 0.24);
+  }
+  ctx.restore();
+  // humo
+  for (let i = 0; i < 3; i++) {
+    const p = (t / 1300 + i * 0.33) % 1;
+    ctx.fillStyle = `rgba(100,100,100,${(wk.salvaged ? 0.25 : 0.45) * (1 - p)})`;
+    ctx.beginPath();
+    ctx.arc(cx - 8 + Math.sin(i * 2.7) * 14, cy - 26 - p * 46, 6 + p * 10, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // aviso de piezas por recuperar
+  if (!wk.salvaged) bounceIcon(cx, cy - 52, t, '#ffd64f', '!');
 }
 
 /* ---------------- Vegetación ---------------- */

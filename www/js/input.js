@@ -222,6 +222,18 @@ function handleTap(sx, sy) {
     return;
   }
 
+  if (wreckAt(tPos.x, tPos.y)) {
+    if (salvageWreck()) {
+      addFloat(w.x, w.y - 26, '+10 Placa de hierro', '#ffd64f', 'plate');
+      addFloat(w.x - 30, w.y, '+8 Varilla de hierro', '#ffd64f', 'rod');
+      addFloat(w.x + 30, w.y + 22, '+5 Cable', '#ffd64f', 'cable');
+      toast('Piezas recuperadas. Ahora construye el HUB (modo Construir).');
+    } else {
+      toast('Ya no queda nada útil entre los restos.');
+    }
+    return;
+  }
+
   const node = nodeAt(tPos.x, tPos.y);
   if (node) {
     const item = manualMine(node);

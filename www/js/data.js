@@ -69,10 +69,10 @@ const RECIPES = {
    power: MW (negativo consume, positivo genera). rate en objetos/seg (mineros). */
 const BUILDINGS = {
   hub: {
-    name: 'HUB', w: 4, h: 3, cost: {}, power: 10,
+    name: 'HUB', w: 4, h: 3, cost: { plate: 8, rod: 6, cable: 4 }, power: 10,
     color: '#c9a86a', roof: '#e0c084',
-    desc: 'Centro de mando. Entrega objetos para completar hitos y fabrica a mano en su banco. Suministra 10 MW a los edificios conectados.',
-    buildable: false,
+    desc: 'Tu base de operaciones: constrúyelo con las piezas de la nave. Te entrega el pico de minero, acepta entregas de misiones, fabrica a mano y suministra 10 MW.',
+    buildable: true,
   },
   portable_miner: {
     name: 'Taladro portátil', w: 1, h: 1, cost: { iron_ore: 5 }, power: 0,

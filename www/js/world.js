@@ -23,6 +23,8 @@ function genWorld(seed) {
 
   const world = {
     seed, hubX, hubY,
+    // restos de la nave estrellada (4x2), junto al lugar del futuro HUB
+    wreck: { x: hubX + 1, y: hubY - 3, salvaged: false },
     water: [],
     nodes: [],
     bushes: [],
@@ -174,4 +176,8 @@ function isWater(x, y) { return !!state.world.waterTiles[key(x, y)]; }
 function treeAt(x, y) { return state.world.trees.find(t => t.x === x && t.y === y); }
 function bushAt(x, y) { return state.world.bushes.find(b => b.x === x && b.y === y); }
 function rockAt(x, y) { return state.world.rocks.find(r => r.x === x && r.y === y); }
+function wreckAt(x, y) {
+  const w = state.world.wreck;
+  return w && x >= w.x && x < w.x + 4 && y >= w.y && y < w.y + 2;
+}
 function inBounds(x, y) { return x >= 0 && y >= 0 && x < MAP_W && y < MAP_H; }

@@ -2,7 +2,7 @@
    Factoría 2D — Lógica del juego (estado, simulación, construcción)
    ========================================================= */
 
-const SAVE_KEY = 'factoria2d_save_v3';
+const SAVE_KEY = 'factoria2d_save_v4';
 let state = null;
 let powerEdges = [];   // conexiones eléctricas activas [{a,b}] (para dibujar cables)
 
@@ -18,7 +18,7 @@ function opposite(d) { return { E: 'W', W: 'E', N: 'S', S: 'N' }[d]; }
 function newGame() {
   const seed = (Math.random() * 2 ** 31) | 0;
   state = {
-    version: 3,
+    version: 4,
     time: 0,
     playTime: 0,
     inventory: {},
@@ -28,18 +28,39 @@ function newGame() {
     nextId: 1,
     milestoneIndex: 0,
     msProgress: {},       // item -> entregado (del hito actual)
-    unlockedB: ['portable_miner'],
+    unlockedB: ['hub'],
     unlockedR: [],
     power: { sup: 0, dem: 0, overload: false },
     victory: false,
     victoryShown: false,
     stats: { mined: 0, crafted: 0, built: 0, produced: 0, delivered: 0 },
+    introDone: false,
     world: genWorld(seed),
   };
-  // El HUB se coloca en el centro del mapa generado
-  const hub = mkBuilding('hub', state.world.hubX, state.world.hubY);
-  state.buildings.push(hub);
-  occupy(hub);
+  // No hay HUB inicial: el jugador debe construirlo con las piezas de la nave.
+}
+
+function hubBuilt() { return state.buildings.some(b => b.type === 'hub'); }
+
+/* Recuperar las piezas de la nave estrellada (una sola vez) */
+function salvageWreck() {
+  const w = state.world.wreck;
+  if (!w || w.salvaged) return false;
+  w.salvaged = true;
+  invAdd('plate', 10);
+  invAdd('rod', 8);
+  invAdd('cable', 5);
+  sfx('collect');
+  return true;
+}
+
+/* Al construir el HUB: entrega el pico y el plano del taladro portátil */
+function onHubBuilt() {
+  if (!state.unlockedB.includes('portable_miner')) state.unlockedB.push('portable_miner');
+  sfx('milestone');
+  toast('HUB operativo: has recibido el pico de minero.');
+  toast('Nuevo plano desbloqueado: Taladro portátil.');
+  onUnlocksChanged();
 }
 
 function mkBuilding(type, x, y) {
@@ -96,6 +117,7 @@ function refund(cost) { for (const k in cost) invAdd(k, cost[k]); }
 function tileFree(x, y) {
   if (!inBounds(x, y)) return false;
   if (isWater(x, y)) return false;
+  if (wreckAt(x, y)) return false;
   if (state.occ[key(x, y)] !== undefined) return false;
   if (beltAt(x, y)) return false;
   if (treeAt(x, y) || rockAt(x, y) || bushAt(x, y)) return false;
@@ -117,6 +139,7 @@ function canPlaceBuilding(type, x, y) {
       const tx = x + dx, ty = y + dy;
       if (!inBounds(tx, ty)) return { ok: false, why: 'Fuera del mapa' };
       if (isWater(tx, ty)) return { ok: false, why: 'No se puede construir en el agua' };
+      if (wreckAt(tx, ty)) return { ok: false, why: 'Los restos de la nave bloquean el paso' };
       if (state.occ[key(tx, ty)] !== undefined) return { ok: false, why: 'Espacio ocupado' };
       if (beltAt(tx, ty)) return { ok: false, why: 'Hay una cinta en el camino' };
       if (treeAt(tx, ty) || rockAt(tx, ty) || bushAt(tx, ty)) return { ok: false, why: 'Despeja la vegetación primero' };
@@ -135,6 +158,7 @@ function canPlaceBuilding(type, x, y) {
     const count = state.buildings.filter(b => b.type === 'portable_miner').length;
     if (count >= def.limit) return { ok: false, why: 'Máximo ' + def.limit + ' taladros portátiles' };
   }
+  if (type === 'hub' && hubBuilt()) return { ok: false, why: 'Ya tienes un HUB' };
   return { ok: true, x, y };
 }
 
@@ -149,6 +173,7 @@ function placeBuilding(type, x, y) {
   occupy(b);
   state.stats.built++;
   sfx('build');
+  if (type === 'hub') onHubBuilt();
   return { ok: true, b };
 }
 
@@ -173,6 +198,7 @@ function demolishBuilding(b) {
 function canPlaceBelt(x, y) {
   if (!inBounds(x, y)) return false;
   if (isWater(x, y)) return false;
+  if (wreckAt(x, y)) return false;
   if (state.occ[key(x, y)] !== undefined) return false;
   if (nodeAt(x, y)) return false;
   if (treeAt(x, y) || rockAt(x, y) || bushAt(x, y)) return false;
@@ -531,6 +557,10 @@ let mineCooldown = 0;
 function manualMine(node) {
   if (performance.now() < mineCooldown) return false;
   mineCooldown = performance.now() + 220;
+  if (!hubBuilt()) {
+    toast('Necesitas el pico de minero: recupera los restos de la nave y construye el HUB.');
+    return false;
+  }
   const item = NODE_TYPES[node.type].item;
   invAdd(item, 1);
   state.stats.mined++;
@@ -665,7 +695,7 @@ function loadGame() {
     const s = localStorage.getItem(SAVE_KEY);
     if (!s) return false;
     const data = JSON.parse(s);
-    if (!data || data.version !== 3) return false;
+    if (!data || data.version !== 4) return false;
     state = data;
     return true;
   } catch (e) { return false; }

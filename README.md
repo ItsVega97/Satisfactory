@@ -6,9 +6,10 @@ Juego de gestión y automatización de fábricas en 2D (con simulación pseudo-3
 
 ## 🎮 Cómo jugar (~2 horas de gameplay)
 
-Eres un ingeniero de FICSIT. Tu misión: completar las **10 misiones del HUB** hasta enviar la **Fase 2 del Ascensor Espacial**. El mapa se **genera proceduralmente en cada partida**: los yacimientos, lagos y bosques cambian, pero siempre tendrás hierro y cobre cerca del HUB y el carbón lejos.
+Eres un ingeniero de FICSIT cuya nave **se estrella en un planeta desconocido** (intro cinemática animada). El mapa se **genera proceduralmente en cada partida**: los yacimientos, lagos y bosques cambian, pero siempre tendrás hierro y cobre cerca del punto del accidente y el carbón lejos. Tu misión: completar las **10 misiones del HUB** hasta enviar la **Fase 2 del Ascensor Espacial**.
 
-1. **Pica recursos a mano** — toca los yacimientos (rocas de colores) para extraer mineral.
+0. **Sobrevive al accidente** — recupera las piezas de los restos humeantes de la nave y **construye con ellas el HUB**, que te entrega el pico de minero.
+1. **Pica recursos a mano** — toca los yacimientos (rocas de colores) para extraer mineral (necesitas el pico del HUB).
 2. **Taladro portátil** — colócalo sobre un yacimiento (cuesta 5 de mineral de hierro, máx. 6) y toca para recoger lo extraído.
 3. **HUB** — entrega objetos para completar hitos y fabrica piezas a mano en el banco de artesanía.
 4. **Automatiza** — desbloquea Fundidoras, Constructores, Ensambladoras y Mineros Mk.1. Toca cada máquina para asignarle una receta.
@@ -62,6 +63,7 @@ www/                  Juego (HTML5 Canvas, sin dependencias)
   js/render.js        Renderizado pseudo-3D (sombras, extrusión)
   js/input.js         Entrada táctil/ratón (paneo, zoom, modos)
   js/ui.js            Paneles, palette de construcción, tutorial
+  js/intro.js         Intro cinemática (nave espacial que se estrella)
   js/main.js          Bucle principal y audio sintetizado
 android/              Proyecto nativo generado por Capacitor
 .github/workflows/    CI que compila y publica el APK
