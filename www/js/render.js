@@ -439,20 +439,30 @@ function drawPowerCables(t) {
   }
 }
 
-/* Zona de alcance eléctrico alrededor de una huella (para fantasma/selección) */
-function drawPowerRange(x, y, w, h, isRelay) {
-  const plug = PLUG_RANGE * TILE;
-  ctx.fillStyle = 'rgba(255,214,79,0.10)';
-  ctx.beginPath();
-  ctx.roundRect(x * TILE - plug, y * TILE - plug, w * TILE + plug * 2, h * TILE + plug * 2, plug);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,214,79,0.55)';
-  ctx.lineWidth = 1.5;
+/* Zona de alcance eléctrico alrededor de una huella.
+   kind: 'pole' = solo alcance de cable (6) · 'relay' = enchufe + cable · false = solo enchufe */
+function drawPowerRange(x, y, w, h, kind) {
   ctx.setLineDash([5, 5]);
-  ctx.stroke();
-  if (isRelay) {
+  if (kind !== 'pole') {
+    const plug = PLUG_RANGE * TILE;
+    ctx.fillStyle = 'rgba(255,214,79,0.10)';
+    ctx.beginPath();
+    ctx.roundRect(x * TILE - plug, y * TILE - plug, w * TILE + plug * 2, h * TILE + plug * 2, plug);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,214,79,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  if (kind === 'pole' || kind === 'relay') {
     const link = LINK_RANGE * TILE;
-    ctx.strokeStyle = 'rgba(120,190,255,0.45)';
+    if (kind === 'pole') {
+      ctx.fillStyle = 'rgba(120,190,255,0.08)';
+      ctx.beginPath();
+      ctx.roundRect(x * TILE - link, y * TILE - link, w * TILE + link * 2, h * TILE + link * 2, link);
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(120,190,255,0.5)';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.roundRect(x * TILE - link, y * TILE - link, w * TILE + link * 2, h * TILE + link * 2, link);
     ctx.stroke();
@@ -744,7 +754,7 @@ function drawOverlays(t) {
     if (state.buildings.includes(b)) {
       const def = BUILDINGS[b.type];
       if (def.pole || def.power !== 0) {
-        drawPowerRange(b.x, b.y, def.w, def.h, def.pole || def.power > 0);
+        drawPowerRange(b.x, b.y, def.w, def.h, def.pole ? 'pole' : (def.power > 0 ? 'relay' : false));
       }
       const pulse = 2 + Math.sin(t / 250) * 1.5;
       ctx.strokeStyle = '#ffffff';
@@ -754,6 +764,29 @@ function drawOverlays(t) {
       ctx.setLineDash([]);
     }
   }
+  // trazado de cable: alcance del poste y destinos válidos parpadeando
+  if (ui.linking) {
+    const pole = state.buildings.find(x => x.id === ui.linking);
+    if (pole) {
+      drawPowerRange(pole.x, pole.y, 1, 1, 'pole');
+      const pulse = 0.5 + Math.sin(t / 200) * 0.35;
+      for (const cand of state.buildings) {
+        if (cand.id === pole.id) continue;
+        if (!(isPowerSource(cand) || isPowerConsumer(cand) || isPole(cand))) continue;
+        if (buildingGap(pole, cand) > LINK_RANGE) continue;
+        if (cableCount(cand) >= cableLimit(cand)) continue;
+        if (state.cables.some(c =>
+          (c.a === pole.id && c.b === cand.id) || (c.b === pole.id && c.a === cand.id))) continue;
+        const cd = BUILDINGS[cand.type];
+        ctx.strokeStyle = `rgba(140,235,140,${pulse})`;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([7, 5]);
+        ctx.strokeRect(cand.x * TILE - 3, cand.y * TILE - 12, cd.w * TILE + 6, cd.h * TILE + 15);
+        ctx.setLineDash([]);
+      }
+    }
+  }
+
   // ruta de cinta en curso
   if (input.beltPath && input.beltPath.length) {
     for (let i = 0; i < input.beltPath.length; i++) {
@@ -783,7 +816,7 @@ function drawGhost(t) {
   const gx = (chk.ok && chk.x !== undefined) ? chk.x : g.x;
   const gy = (chk.ok && chk.y !== undefined) ? chk.y : g.y;
   if (def.pole || def.power !== 0) {
-    drawPowerRange(gx, gy, def.w, def.h, def.pole || def.power > 0);
+    drawPowerRange(gx, gy, def.w, def.h, def.pole ? 'pole' : (def.power > 0 ? 'relay' : false));
   }
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = def.roof || def.color;

@@ -19,6 +19,7 @@ function setMode(m) {
   input.beltPath = null;
   ui.ghost = null;
   ui.selected = null;
+  cancelLinking(true);
   closeSheet();
   document.querySelectorAll('#modebar button').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === m);
@@ -203,6 +204,27 @@ function handleTap(sx, sy) {
       invAdd('biomass', 8);
       sfx('collect');
       addFloat(w.x, w.y, '+8 Biomasa', '#a5d16e', 'biomass');
+    }
+    return;
+  }
+
+  // trazado de cable en curso: el toque elige el destino
+  if (ui.linking) {
+    const pole = state.buildings.find(x => x.id === ui.linking);
+    if (!pole) { cancelLinking(true); return; }
+    const target = buildingAt(tPos.x, tPos.y);
+    if (target && target.id !== pole.id) {
+      const r = addCable(pole, target);
+      if (r.ok) {
+        addFloat(w.x, w.y, 'Cable conectado', '#8fe08f');
+        cancelLinking(true);
+        ui.selected = null;
+      } else {
+        toast(r.why);
+      }
+    } else {
+      cancelLinking();
+      ui.selected = null;
     }
     return;
   }

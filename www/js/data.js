@@ -136,7 +136,7 @@ const BUILDINGS = {
   power_pole: {
     name: 'Poste eléctrico', w: 1, h: 1, cost: { rod: 1, wire: 3 }, power: 0, pole: true,
     color: '#6f522f', roof: '#6f522f',
-    desc: 'Extiende la red eléctrica con cables: enlaza con generadores, el HUB y otros postes (hasta ' + LINK_RANGE + ' casillas) y da corriente a las máquinas cercanas (' + PLUG_RANGE + ' casillas).',
+    desc: 'Admite hasta 3 conexiones que trazas tú mismo (1 Cable cada una, alcance ' + LINK_RANGE + ' casillas): selecciónalo y pulsa Trazar cable hacia generadores, máquinas, el HUB u otros postes.',
     buildable: true,
   },
   biomass_burner: {

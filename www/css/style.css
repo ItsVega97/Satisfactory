@@ -361,3 +361,19 @@ button.stat { cursor: pointer; }
   font-size: 14px; font-weight: 700;
   cursor: pointer;
 }
+
+
+/* ---------- Trazado de cables ---------- */
+#linkBar {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 108px);
+  left: 50%; transform: translateX(-50%);
+  z-index: 22;
+}
+#linkBar button {
+  padding: 12px 22px;
+  font-size: 16px; font-weight: 700;
+  border: none; border-radius: 12px;
+  background: #b23b3b; color: #fff;
+  cursor: pointer;
+}
