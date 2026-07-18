@@ -171,16 +171,12 @@ function drawContents(t) {
   for (const b of state.buildings) {
     const def = BUILDINGS[b.type];
     let entries = [];
-    let extra = 0;
     if (b.type === 'hub') {
-      const inv = Object.entries(state.inventory).filter(e => e[1] >= 1).sort((a, c) => c[1] - a[1]);
-      entries = inv.slice(0, 4);
-      extra = inv.length - entries.length;
+      // todos los materiales del inventario, de mayor a menor
+      entries = Object.entries(state.inventory).filter(e => e[1] >= 1).sort((a, c) => c[1] - a[1]);
       if (!entries.length) continue;
     } else if (b.type === 'storage') {
-      const st = Object.entries(b.store).filter(e => e[1] >= 1).sort((a, c) => c[1] - a[1]);
-      entries = st.slice(0, 3);
-      extra = st.length - entries.length;
+      entries = Object.entries(b.store).filter(e => e[1] >= 1).sort((a, c) => c[1] - a[1]);
       if (!entries.length) continue;
     } else if (b.type === 'miner1' || b.type === 'miner2' || b.type === 'portable_miner') {
       if (!b.nodeType) continue;
@@ -202,10 +198,6 @@ function drawContents(t) {
       const txt = String(Math.floor(nq));
       return { item, txt, w: 16 + ctx.measureText(txt).width };
     });
-    if (extra > 0) {
-      const txt = '+' + extra;
-      parts.push({ item: null, txt, w: 5 + ctx.measureText(txt).width });
-    }
     const maxRowW = Math.max(def.w * TILE, ...parts.map(p => p.w));
     const rows = [[]];
     let rowW = 0;
@@ -231,14 +223,9 @@ function drawContents(t) {
       const y = top + pad + rowH * ri + 7;
       let px = cx - widths[ri] / 2;   // cada fila centrada
       for (const p of row) {
-        if (p.item) {
-          drawItemShape(ctx, p.item, px + 6, y, 6);
-          ctx.fillStyle = '#fff';
-          ctx.fillText(p.txt, px + 14, y + 0.5);
-        } else {
-          ctx.fillStyle = '#a9b0a2';
-          ctx.fillText(p.txt, px, y + 0.5);
-        }
+        drawItemShape(ctx, p.item, px + 6, y, 6);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(p.txt, px + 14, y + 0.5);
         px += p.w + gap;
       }
     });
