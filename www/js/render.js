@@ -754,7 +754,7 @@ function drawOverlays(t) {
     if (state.buildings.includes(b)) {
       const def = BUILDINGS[b.type];
       if (def.pole || def.power !== 0) {
-        drawPowerRange(b.x, b.y, def.w, def.h, def.pole ? 'pole' : (def.power > 0 ? 'relay' : false));
+        drawPowerRange(b.x, b.y, def.w, def.h, 'pole');
       }
       const pulse = 2 + Math.sin(t / 250) * 1.5;
       ctx.strokeStyle = '#ffffff';
@@ -768,7 +768,8 @@ function drawOverlays(t) {
   if (ui.linking) {
     const pole = state.buildings.find(x => x.id === ui.linking);
     if (pole) {
-      drawPowerRange(pole.x, pole.y, 1, 1, 'pole');
+      const pd = BUILDINGS[pole.type];
+      drawPowerRange(pole.x, pole.y, pd.w, pd.h, 'pole');
       const pulse = 0.5 + Math.sin(t / 200) * 0.35;
       for (const cand of state.buildings) {
         if (cand.id === pole.id) continue;
@@ -816,7 +817,7 @@ function drawGhost(t) {
   const gx = (chk.ok && chk.x !== undefined) ? chk.x : g.x;
   const gy = (chk.ok && chk.y !== undefined) ? chk.y : g.y;
   if (def.pole || def.power !== 0) {
-    drawPowerRange(gx, gy, def.w, def.h, def.pole ? 'pole' : (def.power > 0 ? 'relay' : false));
+    drawPowerRange(gx, gy, def.w, def.h, 'pole');
   }
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = def.roof || def.color;

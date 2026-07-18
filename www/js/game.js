@@ -333,25 +333,25 @@ function cableCount(b) {
   return (state.cables || []).filter(c => c.a === b.id || c.b === b.id).length;
 }
 function cableLimit(b) {
-  if (isPole(b)) return 3;
-  if (isPowerConsumer(b)) return 1;
-  return 99;   // generadores y HUB
+  return isPole(b) ? 3 : 1;   // postes: 3 · máquinas, generadores y HUB: 1
 }
-function addCable(pole, target) {
-  if (!target || target.id === pole.id) return { ok: false, why: 'Objetivo no válido' };
+function addCable(from, target) {
+  if (!target || target.id === from.id) return { ok: false, why: 'Objetivo no válido' };
   if (!(isPowerSource(target) || isPowerConsumer(target) || isPole(target)))
     return { ok: false, why: 'Ese edificio no se conecta a la red eléctrica' };
   if ((state.cables || []).some(c =>
-    (c.a === pole.id && c.b === target.id) || (c.b === pole.id && c.a === target.id)))
+    (c.a === from.id && c.b === target.id) || (c.b === from.id && c.a === target.id)))
     return { ok: false, why: 'Ya están conectados' };
-  if (cableCount(pole) >= 3) return { ok: false, why: 'El poste ya tiene sus 3 conexiones' };
+  const fullMsg = b => isPole(b) ? 'ya tiene sus 3 conexiones' : 'ya tiene su único cable';
+  if (cableCount(from) >= cableLimit(from))
+    return { ok: false, why: 'Este edificio ' + fullMsg(from) };
   if (cableCount(target) >= cableLimit(target))
-    return { ok: false, why: isPole(target) ? 'Ese poste ya tiene sus 3 conexiones' : 'Esa máquina ya tiene un cable' };
-  if (buildingGap(pole, target) > LINK_RANGE)
+    return { ok: false, why: 'El destino ' + fullMsg(target) };
+  if (buildingGap(from, target) > LINK_RANGE)
     return { ok: false, why: 'Demasiado lejos (máximo ' + LINK_RANGE + ' casillas)' };
   if (invCount('cable') < 1) return { ok: false, why: 'Necesitas 1 Cable para trazar la conexión' };
   invAdd('cable', -1);
-  state.cables.push({ a: pole.id, b: target.id });
+  state.cables.push({ a: from.id, b: target.id });
   sfx('build');
   return { ok: true };
 }
@@ -379,17 +379,7 @@ function computePower() {
     adj.get(b.id).push(a);
     powerEdges.push({ a, b });
   };
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      const a = nodes[i], b = nodes[j];
-      if (isPole(a) || isPole(b)) continue;   // los postes solo conectan por cables trazados
-      if (isPowerSource(a) && isPowerSource(b)) {
-        if (buildingGap(a, b) <= LINK_RANGE) link(a, b);
-      } else if (isPowerSource(a) !== isPowerSource(b)) {
-        if (buildingGap(a, b) <= PLUG_RANGE) link(a, b);   // enchufe directo a generador/HUB
-      }
-    }
-  }
+  // toda la red se traza a mano: la única adyacencia son los cables del jugador
   for (const c of state.cables) link(byId.get(c.a), byId.get(c.b));
 
   // componentes conexas

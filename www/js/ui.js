@@ -204,6 +204,8 @@ function renderHubSheet() {
   </div>`;
 
   if (ui.hubTab === 'hitos') {
+    const hubB = state.buildings.find(x => x.type === 'hub');
+    if (hubB) html += cableSectionHtml(hubB) + '<hr>';
     if (!ms) {
       html += `<p class="ok">¡Has completado todos los hitos! Sigue ampliando tu fábrica.</p>`;
     } else {
@@ -265,6 +267,8 @@ function renderHubSheet() {
     if (n > 0) refreshSheet();
     updateTopbar();
   }));
+  const hubB2 = state.buildings.find(x => x.type === 'hub');
+  if (hubB2) wireCableSection(body, hubB2);
   body.querySelectorAll('.craft').forEach(btn => btn.addEventListener('click', () => {
     const made = handCraft(btn.dataset.r, parseInt(btn.dataset.n, 10));
     if (made > 0) refreshSheet();
@@ -286,35 +290,12 @@ function renderBuildingSheet() {
   let html = `<p class="dim">${def.desc}</p>`;
 
   if (def.power < 0) {
-    if (!b._conn) html += `<p class="warn">Sin conexión a la red eléctrica: acércala al HUB, a un generador o a un poste.</p>`;
+    if (!b._conn) html += `<p class="warn">Sin conexión a la red eléctrica: traza un cable hasta un poste o un generador.</p>`;
     else if (!b._pw && machineWants(b)) html += `<p class="warn">Red sin energía suficiente: añade o alimenta generadores.</p>`;
     else html += `<p class="ok">Conectada a la red eléctrica (${-def.power} MW).</p>`;
   }
 
-  if (b.type === 'power_pole') {
-    const conns = [];
-    (state.cables || []).forEach((c, idx) => {
-      if (c.a !== b.id && c.b !== b.id) return;
-      const other = state.buildings.find(x => x.id === (c.a === b.id ? c.b : c.a));
-      if (other) conns.push({ idx, other });
-    });
-    html += `<h4>Conexiones (${conns.length}/3)</h4>`;
-    if (!conns.length) {
-      html += `<p class="dim">Sin conexiones: este poste no forma parte de ninguna red.</p>`;
-    }
-    for (const c of conns) {
-      html += `<div class="req-row">
-        <div class="req-info"><span class="chip"><img class="icico" src="${buildingIconURL(c.other.type)}" alt="">${BUILDINGS[c.other.type].name}</span></div>
-        <button class="btn alt cut-cable" data-idx="${c.idx}">Cortar</button>
-      </div>`;
-    }
-    const canLink = conns.length < 3;
-    const hasCable = invCount('cable') >= 1;
-    html += `<p class="dim">Cada conexión cuesta 1 ${chip('cable')} (tienes ${invCount('cable')}).</p>
-      <button class="btn" id="bLink" ${canLink && hasCable ? '' : 'disabled'}>Trazar cable</button>`;
-    if (!canLink) html += `<p class="warn">Límite alcanzado: corta una conexión para trazar otra.</p>`;
-    else if (!hasCable) html += `<p class="warn">Fabrica cables (2 alambres cada uno) en el banco o un Constructor.</p>`;
-  }
+  if (def.pole || def.power !== 0) html += cableSectionHtml(b);
 
   if (b.type === 'miner1') {
     const item = NODE_TYPES[b.nodeType].item;
@@ -400,6 +381,39 @@ function renderBuildingSheet() {
   });
   const fuel = body.querySelector('#bFuel');
   if (fuel) fuel.addEventListener('click', () => { loadFuel(b, 10); refreshSheet(); });
+  wireCableSection(body, b);
+  body.querySelector('#bDemolish').addEventListener('click', () => {
+    demolishBuilding(b);
+    closeSheet();
+  });
+}
+
+/* Sección de conexiones eléctricas de un edificio (postes: 3 · resto: 1) */
+function cableSectionHtml(b) {
+  const limit = cableLimit(b);
+  const conns = [];
+  (state.cables || []).forEach((c, idx) => {
+    if (c.a !== b.id && c.b !== b.id) return;
+    const other = state.buildings.find(x => x.id === (c.a === b.id ? c.b : c.a));
+    if (other) conns.push({ idx, other });
+  });
+  let html = `<h4>Conexión eléctrica (${conns.length}/${limit})</h4>`;
+  if (!conns.length) html += `<p class="dim">Sin cables: este edificio no forma parte de ninguna red.</p>`;
+  for (const c of conns) {
+    html += `<div class="req-row">
+      <div class="req-info"><span class="chip"><img class="icico" src="${buildingIconURL(c.other.type)}" alt="">${BUILDINGS[c.other.type].name}</span></div>
+      <button class="btn alt cut-cable" data-idx="${c.idx}">Cortar</button>
+    </div>`;
+  }
+  const canLink = conns.length < limit;
+  const hasCable = invCount('cable') >= 1;
+  html += `<p class="dim">Cada conexión cuesta 1 ${chip('cable')} (tienes ${invCount('cable')}).</p>
+    <button class="btn" id="bLink" ${canLink && hasCable ? '' : 'disabled'}>Trazar cable</button>`;
+  if (!canLink) html += `<p class="warn">Límite alcanzado: corta ${limit === 1 ? 'el cable' : 'una conexión'} para trazar otro.</p>`;
+  else if (!hasCable) html += `<p class="warn">Fabrica cables (2 alambres cada uno) en el banco o un Constructor.</p>`;
+  return html;
+}
+function wireCableSection(body, b) {
   body.querySelectorAll('.cut-cable').forEach(btn => btn.addEventListener('click', () => {
     removeCable(parseInt(btn.dataset.idx, 10));
     toast('Cable cortado (recuperas 1 Cable).');
@@ -407,13 +421,9 @@ function renderBuildingSheet() {
   }));
   const linkBtn = body.querySelector('#bLink');
   if (linkBtn) linkBtn.addEventListener('click', () => startLinking(b));
-  body.querySelector('#bDemolish').addEventListener('click', () => {
-    demolishBuilding(b);
-    closeSheet();
-  });
 }
 
-/* ---------------- Trazado de cables desde un poste ---------------- */
+/* ---------------- Trazado de cables ---------------- */
 function startLinking(pole) {
   ui.linking = pole.id;
   ui.selected = pole;
@@ -464,7 +474,7 @@ function renderMenuSheet() {
         <li><b>HUB:</b> toca el edificio HUB para entregar objetos a los hitos y fabricar a mano en el banco. Además suministra 10 MW a los edificios cercanos.</li>
         <li><b>Automatiza:</b> desbloquea Fundidoras, Constructores y Mineros. Asigna una receta tocando la máquina.</li>
         <li><b>Cintas:</b> en el modo cintas, arrastra el dedo para trazarlas desde los mineros a las máquinas y hasta el HUB.</li>
-        <li><b>Electricidad:</b> las máquinas solo funcionan conectadas a la red: se enchufan solas al HUB o a un generador cercano. Para llegar más lejos, construye <b>postes eléctricos</b>: cada poste admite <b>3 conexiones que trazas tú</b> (selecciónalo, pulsa "Trazar cable" y toca el destino; cuesta 1 Cable, y puedes cortarlas). Alimenta los quemadores con biomasa y los generadores de carbón por cinta. Si la demanda supera la generación, la red se sobrecarga.</li>
+        <li><b>Electricidad:</b> toda la red se cablea a mano: selecciona un edificio, pulsa "Trazar cable" y toca el destino (cuesta 1 Cable; puedes cortarlos). Las máquinas, generadores y el HUB admiten <b>1 solo cable</b>; los <b>postes eléctricos</b> admiten <b>3</b> y reparten la energía por el resto de la red. Alimenta los quemadores con biomasa y los generadores de carbón por cinta. Si la demanda supera la generación, la red se sobrecarga.</li>
         <li><b>Objetivo:</b> completa los 6 hitos y envía la Fase 1 del Ascensor Espacial (~30 min).</li>
       </ol>
     </div>`;
@@ -499,7 +509,7 @@ const HINTS = [
   { id: 'smelter', cond: () => state.milestoneIndex === 1 && !state.buildings.some(b => b.type === 'smelter'),
     text: 'Fabrica varillas y alambre en el banco del HUB y construye una Fundidora cerca del HUB (te dará sus 10 MW).' },
   { id: 'noconn', cond: () => state.buildings.some(b => BUILDINGS[b.type].power < 0 && b._conn === false),
-    text: 'Hay máquinas sin conexión: acércalas al HUB o a un generador, o selecciona un poste y usa "Trazar cable" hasta ellas.' },
+    text: 'Hay máquinas sin conexión: selecciónalas (o a un poste/generador) y usa "Trazar cable" para unirlas a la red.' },
   { id: 'recipe', cond: () => state.buildings.some(b => MACH_RECIPES[b.type] && !b.recipe),
     text: 'Tienes máquinas sin receta (icono "?"). Tócalas y asigna una receta.' },
   { id: 'belts', cond: () => state.milestoneIndex === 2 && Object.keys(state.beltMap).length === 0,

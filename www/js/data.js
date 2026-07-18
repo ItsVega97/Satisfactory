@@ -71,7 +71,7 @@ const BUILDINGS = {
   hub: {
     name: 'HUB', w: 4, h: 3, cost: { plate: 8, rod: 6, cable: 4 }, power: 10,
     color: '#c9a86a', roof: '#e0c084',
-    desc: 'Tu base de operaciones: constrúyelo con las piezas de la nave. Te entrega el pico de minero, acepta entregas de misiones, fabrica a mano y suministra 10 MW.',
+    desc: 'Tu base de operaciones: constrúyelo con las piezas de la nave. Te entrega el pico, acepta entregas de misiones, fabrica a mano y suministra 10 MW por un único cable.',
     buildable: true,
   },
   portable_miner: {
@@ -173,13 +173,13 @@ const MILESTONES = [
     name: 'Logística',
     desc: 'Funde lingotes de hierro para desbloquear la logística básica.',
     req: { iron_ingot: 20 },
-    unlocks: { buildings: ['constructor', 'conveyor', 'splitter', 'storage'], recipes: ['plate', 'screw'] },
+    unlocks: { buildings: ['constructor', 'conveyor', 'splitter', 'storage', 'power_pole'], recipes: ['plate', 'screw'] },
   },
   {
     name: 'Automatización',
     desc: 'Produce placas y varillas. Desbloquea mineros automáticos y energía.',
     req: { plate: 30, rod: 30 },
-    unlocks: { buildings: ['miner1', 'biomass_burner', 'power_pole'], recipes: ['cable', 'concrete'] },
+    unlocks: { buildings: ['miner1', 'biomass_burner'], recipes: ['cable', 'concrete'] },
   },
   {
     name: 'Electrónica',
