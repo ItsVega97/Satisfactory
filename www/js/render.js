@@ -195,35 +195,52 @@ function drawContents(t) {
       entries = [[b.queue[0], b.queue.length]];
     } else continue;
 
-    // panel vertical: una fila por material
-    const rowH = 16, pad = 5;
-    let wMax = 0;
+    // panel horizontal: las entradas se reparten en filas cuyo ancho
+    // de referencia es el del propio edificio
+    const rowH = 17, pad = 5, gap = 7;
     const parts = entries.map(([item, nq]) => {
       const txt = String(Math.floor(nq));
-      wMax = Math.max(wMax, 17 + ctx.measureText(txt).width);
-      return { item, txt };
+      return { item, txt, w: 16 + ctx.measureText(txt).width };
     });
     if (extra > 0) {
       const txt = '+' + extra;
-      wMax = Math.max(wMax, 17 + ctx.measureText(txt).width);
-      parts.push({ item: null, txt });
+      parts.push({ item: null, txt, w: 5 + ctx.measureText(txt).width });
     }
-    const wsum = wMax + pad * 2 + 2;
-    const hsum = parts.length * rowH + pad * 2 - 2;
+    const maxRowW = Math.max(def.w * TILE, ...parts.map(p => p.w));
+    const rows = [[]];
+    let rowW = 0;
+    for (const p of parts) {
+      const need = (rows[rows.length - 1].length ? gap : 0) + p.w;
+      if (rowW + need > maxRowW && rows[rows.length - 1].length) {
+        rows.push([p]);
+        rowW = p.w;
+      } else {
+        rows[rows.length - 1].push(p);
+        rowW += need;
+      }
+    }
+    const widths = rows.map(r => r.reduce((s, p, i) => s + p.w + (i ? gap : 0), 0));
+    const wsum = Math.max(...widths) + pad * 2;
+    const hsum = rows.length * rowH + pad * 2 - 3;
     const cx = (b.x + def.w / 2) * TILE;
     const top = b.y * TILE - 9 - 14 - hsum;
     ctx.fillStyle = 'rgba(12,16,12,0.68)';
-    ctx.beginPath(); ctx.roundRect(cx - wsum / 2, top, wsum, hsum, 7); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(cx - wsum / 2, top, wsum, hsum, 8); ctx.fill();
     ctx.textAlign = 'left';
-    parts.forEach((p, i) => {
-      const y = top + pad + rowH * i + 7;
-      if (p.item) {
-        drawItemShape(ctx, p.item, cx - wsum / 2 + pad + 6, y, 6);
-        ctx.fillStyle = '#fff';
-      } else {
-        ctx.fillStyle = '#a9b0a2';
+    rows.forEach((row, ri) => {
+      const y = top + pad + rowH * ri + 7;
+      let px = cx - widths[ri] / 2;   // cada fila centrada
+      for (const p of row) {
+        if (p.item) {
+          drawItemShape(ctx, p.item, px + 6, y, 6);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(p.txt, px + 14, y + 0.5);
+        } else {
+          ctx.fillStyle = '#a9b0a2';
+          ctx.fillText(p.txt, px, y + 0.5);
+        }
+        px += p.w + gap;
       }
-      ctx.fillText(p.txt, cx - wsum / 2 + pad + (p.item ? 15 : 4), y + 0.5);
     });
   }
   ctx.textAlign = 'center';
