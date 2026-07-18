@@ -40,6 +40,14 @@ function toast(msg) {
   }, 2600);
 }
 
+/* Avisos que solo se muestran la primera vez (se guardan con la partida) */
+function tipOnce(id, msg) {
+  if (!state.tipsSeen) state.tipsSeen = {};
+  if (state.tipsSeen[id]) return;
+  state.tipsSeen[id] = true;
+  toast(msg);
+}
+
 /* ---------------- Barra superior ---------------- */
 function updateTopbar() {
   const p = state.power;
@@ -114,7 +122,7 @@ function rebuildPalette() {
       ui.ghost = null;
       updateConfirmBar();
       rebuildPalette();
-      toast(def.desc);
+      tipOnce('bdesc_' + id, def.desc);
     });
     pal.appendChild(div);
   }
@@ -151,7 +159,7 @@ function rebuildBeltPalette() {
       ui.ghost = null;
       updateConfirmBar();
       rebuildBeltPalette();
-      toast(def.desc);
+      tipOnce('bdesc_' + t.type, def.desc);
     });
     pal.appendChild(div);
   }
@@ -435,7 +443,7 @@ const HINTS = [
   { id: 'buildhub', cond: () => !hubBuilt(),
     text: 'Con las piezas recuperadas, construye el HUB (modo Construir): será tu base y te dará el pico.' },
   { id: 'mine', cond: () => state.milestoneIndex === 0 && state.stats.mined < 10,
-    text: 'El HUB te ha entregado el pico. Toca un yacimiento de hierro (rocas grises) para picar mineral.' },
+    text: 'El HUB te ha entregado el pico. Explora el mapa: los yacimientos de hierro (rocas grises) están a cierta distancia.' },
   { id: 'portable', cond: () => state.milestoneIndex === 0 && state.stats.mined >= 10 && !state.buildings.some(b => b.type === 'portable_miner'),
     text: 'Abre Construir y coloca un Taladro portátil sobre un yacimiento (cuesta 5 de mineral de hierro).' },
   { id: 'deliver0', cond: () => state.milestoneIndex === 0 && invCount('iron_ore') + (state.msProgress.iron_ore || 0) >= 30,

@@ -108,20 +108,16 @@ function genWorld(seed) {
     return count === 0;
   };
 
-  // hierro y cobre garantizados cerca del inicio; carbón lejos
-  placeCluster('iron', 5, 9, 2);
-  placeCluster('iron', 8, 14, 2);
-  placeCluster('iron', 13, 22, 2);
-  placeCluster('iron', 16, 28, 2);
-  placeCluster('copper', 7, 12, 2);
-  placeCluster('copper', 12, 20, 2);
-  placeCluster('copper', 18, 28, 2);
-  placeCluster('limestone', 8, 14, 2);
-  placeCluster('limestone', 14, 24, 2);
-  placeCluster('limestone', 18, 30, 2);
-  placeCluster('coal', 16, 24, 2);
-  placeCluster('coal', 20, 30, 3);
-  placeCluster('coal', 24, 36, 3);
+  // yacimientos escasos (3-4 por tipo) y alejados del lugar del accidente:
+  // hay que explorar y tender cintas largas hasta la base
+  placeCluster('iron', 11, 16, 2);
+  placeCluster('iron', 16, 26, 2);
+  placeCluster('copper', 12, 18, 2);
+  placeCluster('copper', 18, 28, 1);
+  placeCluster('limestone', 13, 20, 2);
+  placeCluster('limestone', 18, 30, 1);
+  placeCluster('coal', 20, 28, 2);
+  placeCluster('coal', 26, 36, 2);
 
   /* ---- Vegetación ---- */
   const reserved = (x, y) => {

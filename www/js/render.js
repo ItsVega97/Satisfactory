@@ -158,49 +158,73 @@ function draw(t) {
 }
 
 /* ---------------- Contenido visible sobre los edificios ----------------
-   Muestra en el mapa lo que hay dentro: contenedores, búferes de mineros,
-   salidas de las máquinas y combustible de los generadores. */
+   Mini-lista vertical (icono + cantidad, como el HUD de misión):
+   - HUB: los materiales del inventario (los 4 más abundantes)
+   - Contenedores: sus 3 materiales principales
+   - Mineros y taladros: SIEMPRE el mineral que minan (aunque sea 0),
+     porque el edificio tapa el yacimiento
+   - Máquinas: su salida · Generadores: su combustible · Separadores: su cola */
 function drawContents(t) {
-  if (cam.z < 0.65) return;   // demasiado lejos para leerse
+  if (cam.z < 0.55) return;   // demasiado lejos para leerse
   ctx.font = 'bold 10px sans-serif';
   ctx.textBaseline = 'middle';
   for (const b of state.buildings) {
     const def = BUILDINGS[b.type];
     let entries = [];
-    if (b.type === 'storage') {
-      entries = Object.entries(b.store).filter(e => e[1] >= 1).sort((a, c) => c[1] - a[1]).slice(0, 3);
+    let extra = 0;
+    if (b.type === 'hub') {
+      const inv = Object.entries(state.inventory).filter(e => e[1] >= 1).sort((a, c) => c[1] - a[1]);
+      entries = inv.slice(0, 4);
+      extra = inv.length - entries.length;
+      if (!entries.length) continue;
+    } else if (b.type === 'storage') {
+      const st = Object.entries(b.store).filter(e => e[1] >= 1).sort((a, c) => c[1] - a[1]);
+      entries = st.slice(0, 3);
+      extra = st.length - entries.length;
+      if (!entries.length) continue;
     } else if (b.type === 'miner1' || b.type === 'miner2' || b.type === 'portable_miner') {
-      const n = Math.floor(b.buf);
-      if (n > 0 && b.nodeType) entries = [[NODE_TYPES[b.nodeType].item, n]];
+      if (!b.nodeType) continue;
+      entries = [[NODE_TYPES[b.nodeType].item, Math.floor(b.buf)]];   // siempre visible
     } else if (MACH_RECIPES[b.type]) {
       entries = Object.entries(b.outBuf).filter(e => e[1] >= 1).slice(0, 2);
-    } else if (def.fuelItem && b.fuel > 0) {
+      if (!entries.length) continue;
+    } else if (def.fuelItem) {
+      if (b.fuel <= 0) continue;
       entries = [[def.fuelItem, b.fuel]];
     } else if (b.type === 'splitter' && b.queue && b.queue.length) {
       entries = [[b.queue[0], b.queue.length]];
-    }
-    if (!entries.length) continue;
+    } else continue;
 
-    let wsum = 6;
+    // panel vertical: una fila por material
+    const rowH = 16, pad = 5;
+    let wMax = 0;
     const parts = entries.map(([item, nq]) => {
       const txt = String(Math.floor(nq));
-      const tw = ctx.measureText(txt).width;
-      const w = 16 + tw + 7;
-      wsum += w;
-      return { item, txt, w };
+      wMax = Math.max(wMax, 17 + ctx.measureText(txt).width);
+      return { item, txt };
     });
-    const cx = (b.x + def.w / 2) * TILE;
-    const cy = b.y * TILE - 9 - 26;
-    ctx.fillStyle = 'rgba(12,16,12,0.62)';
-    ctx.beginPath(); ctx.roundRect(cx - wsum / 2, cy - 10, wsum, 20, 10); ctx.fill();
-    let px = cx - wsum / 2 + 6;
-    ctx.textAlign = 'left';
-    for (const p of parts) {
-      drawItemShape(ctx, p.item, px + 7, cy, 6.5);
-      ctx.fillStyle = '#fff';
-      ctx.fillText(p.txt, px + 16, cy + 0.5);
-      px += p.w;
+    if (extra > 0) {
+      const txt = '+' + extra;
+      wMax = Math.max(wMax, 17 + ctx.measureText(txt).width);
+      parts.push({ item: null, txt });
     }
+    const wsum = wMax + pad * 2 + 2;
+    const hsum = parts.length * rowH + pad * 2 - 2;
+    const cx = (b.x + def.w / 2) * TILE;
+    const top = b.y * TILE - 9 - 14 - hsum;
+    ctx.fillStyle = 'rgba(12,16,12,0.68)';
+    ctx.beginPath(); ctx.roundRect(cx - wsum / 2, top, wsum, hsum, 7); ctx.fill();
+    ctx.textAlign = 'left';
+    parts.forEach((p, i) => {
+      const y = top + pad + rowH * i + 7;
+      if (p.item) {
+        drawItemShape(ctx, p.item, cx - wsum / 2 + pad + 6, y, 6);
+        ctx.fillStyle = '#fff';
+      } else {
+        ctx.fillStyle = '#a9b0a2';
+      }
+      ctx.fillText(p.txt, cx - wsum / 2 + pad + (p.item ? 15 : 4), y + 0.5);
+    });
   }
   ctx.textAlign = 'center';
 }

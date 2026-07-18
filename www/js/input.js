@@ -33,7 +33,7 @@ function setMode(m) {
     belt: 'Arrastra el dedo para trazar cintas, o elige el Separador abajo para repartir una cinta en tres.',
     demolish: 'Toca edificios, cintas o rocas para retirarlos (se devuelven los materiales).',
   };
-  toast(tips[m]);
+  tipOnce('mode_' + m, tips[m]);
 }
 
 function initInput() {
