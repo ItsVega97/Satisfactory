@@ -57,16 +57,37 @@ function updateTopbar() {
   $('powerBanner').classList.toggle('hidden', !p.overload);
 
   const ms = currentMilestone();
+  let msTxt;
   if (!hubBuilt()) {
-    $('msVal').textContent = 'Construye el HUB';
+    msTxt = 'Construye el HUB';
   } else if (ms) {
     let done = 0, total = 0;
     for (const k in ms.req) { total += ms.req[k]; done += Math.min(ms.req[k], state.msProgress[k] || 0); }
-    $('msVal').textContent = `${ms.name} · ${Math.floor(done / total * 100)}%`;
+    msTxt = `${ms.name} · ${Math.floor(done / total * 100)}%`;
   } else {
-    $('msVal').textContent = '¡Todo completado!';
+    msTxt = '¡Todo completado!';
   }
+  setMarqueeText(msTxt);
   updateMissionHud();
+}
+
+/* Texto de misión de la barra superior: si no cabe, se desplaza para leerse entero */
+let _mqLast = '';
+function setMarqueeText(txt) {
+  const box = $('msVal'), span = $('msText');
+  if (txt !== _mqLast) {
+    _mqLast = txt;
+    span.textContent = txt;
+  }
+  const over = span.scrollWidth - box.clientWidth;
+  if (over > 4) {
+    box.style.setProperty('--mq', -over + 'px');
+    // duración proporcional a lo que hay que recorrer
+    box.style.setProperty('--mq-t', Math.max(5, over / 18 + 4).toFixed(1) + 's');
+    box.classList.add('scroll');
+  } else {
+    box.classList.remove('scroll');
+  }
 }
 
 /* ---------------- HUD de misión (flotante, bajo el indicador eléctrico) ---------------- */
@@ -574,7 +595,7 @@ function onUnlocksChanged() {
 function initUI() {
   // iconos SVG de la interfaz (sin emojis)
   $('powerStat').innerHTML = ICON_SVG.power + '<span id="powerVal"></span>';
-  $('msStat').innerHTML = ICON_SVG.milestone + '<span id="msVal"></span>';
+  $('msStat').innerHTML = ICON_SVG.milestone + '<span id="msVal" class="marquee"><span id="msText"></span></span>';
   $('invBtn').innerHTML = ICON_SVG.inventory;
   $('menuBtn').innerHTML = ICON_SVG.menu;
   $('sheetClose').innerHTML = ICON_SVG.close;

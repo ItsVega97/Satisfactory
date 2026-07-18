@@ -5,10 +5,14 @@
    ========================================================= */
 
 const ICON_SVG = {
-  select: '<svg viewBox="0 0 24 24"><path d="M6 2l12 11-6.2.9 3.3 6.2-2.6 1.4-3.3-6.2L6 19.4z" fill="currentColor"/></svg>',
-  build: '<svg viewBox="0 0 24 24"><g transform="rotate(45 12 12)" fill="currentColor"><rect x="3" y="8.6" width="10" height="6.8" rx="1.2"/><rect x="12.6" y="10.6" width="8.6" height="2.8" rx="1.4"/></g></svg>',
-  belt: '<svg viewBox="0 0 24 24"><path d="M3 10.5h11V6.5l7 5.5-7 5.5v-4H3z" fill="currentColor"/></svg>',
-  demolish: '<svg viewBox="0 0 24 24"><path d="M9.5 3h5l.8 1.8H19v2H5v-2h3.7L9.5 3zM6 8.4h12l-1 12.6H7L6 8.4zm3.6 2.2l.3 8.2h1.4l-.3-8.2H9.6zm4.8 0l-.3 8.2h1.4l.3-8.2h-1.4z" fill="currentColor"/></svg>',
+  // mano que toca (seleccionar)
+  select: '<svg viewBox="0 0 24 24"><path d="M9.8 22c-.8 0-1.5-.3-2-.9l-4.2-4.4c-.6-.6-.6-1.6.1-2.1.6-.5 1.4-.4 2 .1l1.6 1.5V4.9c0-.9.7-1.6 1.5-1.6s1.5.7 1.5 1.6v6.3h.7V9.6c0-.8.6-1.4 1.4-1.4s1.4.6 1.4 1.4v1.9h.7v-1.1c0-.8.6-1.4 1.4-1.4s1.4.6 1.4 1.4v1.5h.7v-.6c0-.7.6-1.3 1.3-1.3s1.3.6 1.3 1.3v4.9c0 3.2-2.6 5.8-5.8 5.8z" fill="currentColor"/></svg>',
+  // mazo de obra (construir)
+  build: '<svg viewBox="0 0 24 24"><g transform="rotate(45 12 12)" fill="currentColor"><rect x="5.2" y="2.6" width="13.6" height="7.6" rx="2"/><rect x="10.4" y="10.4" width="3.2" height="11.4" rx="1.6"/></g></svg>',
+  // cinta con rodillos y flecha (cintas)
+  belt: '<svg viewBox="0 0 24 24"><path d="M9.2 2.6l5.4 4-5.4 4V7.9H4.4V5.3h4.8zM6.2 13.4h11.6a4 4 0 0 1 0 8H6.2a4 4 0 0 1 0-8zm.3 5.9a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8zm5.5 0a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8zm5.5 0a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z" fill="currentColor" fill-rule="evenodd"/></svg>',
+  // dinamita (demoler)
+  demolish: '<svg viewBox="0 0 24 24"><g transform="rotate(-28 10 16)"><rect x="2.5" y="13" width="14.5" height="6.2" rx="2.2" fill="currentColor"/><rect x="8.6" y="13" width="2" height="6.2" fill="rgba(0,0,0,0.28)"/></g><path d="M15.6 10.2c1.2-1.6 2.8-2.2 4.2-1.9" stroke="currentColor" fill="none" stroke-width="1.7" stroke-linecap="round"/><path d="M20.3 5.2l.6 1.6 1.7.2-1.3 1.1.3 1.7-1.5-.9-1.5.8.4-1.6-1.2-1.2 1.7-.1z" fill="currentColor"/></svg>',
   power: '<svg viewBox="0 0 24 24"><path d="M13.5 2L5 13.5h5.5L9 22l8.5-11.5H12z" fill="currentColor"/></svg>',
   milestone: '<svg viewBox="0 0 24 24"><path d="M6 2.5h2V22H6zM10 4h9.5l-3 4.5 3 4.5H10z" fill="currentColor"/></svg>',
   inventory: '<svg viewBox="0 0 24 24"><path d="M4 7.2L12 3l8 4.2v9.6L12 21l-8-4.2zm8-1.9L7 7.9l5 2.6 5-2.6zM6 9.7l5 2.6v6.2l-5-2.6zm12 0v6.2l-5 2.6v-6.2z" fill="currentColor"/></svg>',
