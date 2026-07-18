@@ -204,35 +204,40 @@ function renderHubSheet() {
   </div>`;
 
   if (ui.hubTab === 'hitos') {
-    const hubB = state.buildings.find(x => x.type === 'hub');
-    if (hubB) html += cableSectionHtml(hubB) + '<hr>';
+    // tarjeta de la misión en curso
     if (!ms) {
-      html += `<p class="ok">¡Has completado todos los hitos! Sigue ampliando tu fábrica.</p>`;
+      html += `<div class="card"><p class="ok">¡Has completado todos los hitos! Sigue ampliando tu fábrica.</p></div>`;
     } else {
-      html += `<h3>Misión ${state.milestoneIndex + 1}/${MILESTONES.length}: ${ms.name}</h3>
+      html += `<div class="card">
+        <span class="mc-kicker">Misión ${state.milestoneIndex + 1} de ${MILESTONES.length}</span>
+        <h3>${ms.name}</h3>
         <p class="dim">${ms.desc}</p>`;
       for (const item in ms.req) {
         const done = state.msProgress[item] || 0;
         const need = ms.req[item];
         const inv = invCount(item);
         const pct = Math.floor(done / need * 100);
+        const full = done >= need;
         html += `<div class="req-row">
-          <div class="req-info">${chip(item)} <b>${done}/${need}</b>
-            <div class="mini-bar"><div style="width:${pct}%"></div></div>
+          <div class="icon-tile"><img src="${itemIconURL(item)}" alt=""></div>
+          <div class="req-info">
+            <div class="req-name"><span>${itemName(item)}</span><b class="${full ? 'full' : ''}">${done}/${need}</b></div>
+            <div class="mini-bar"><div class="${full ? 'full' : ''}" style="width:${pct}%"></div></div>
           </div>
-          <button class="btn deliver" data-item="${item}" ${inv <= 0 || done >= need ? 'disabled' : ''}>Entregar (${inv})</button>
+          <button class="btn deliver" data-item="${item}" ${inv <= 0 || full ? 'disabled' : ''}>Entregar<br><small>tienes ${inv}</small></button>
         </div>`;
       }
       const u = ms.unlocks || {};
-      const unlockTxt = [
-        ...(u.buildings || []).map(b => BUILDINGS[b].name),
-        ...(u.recipes || []).map(r => RECIPES[r].name),
-        ...(u.victory ? ['¡VICTORIA!'] : []),
+      const tags = [
+        ...(u.buildings || []).map(b => `<span class="tag">${BUILDINGS[b].name}</span>`),
+        ...(u.recipes || []).map(r => `<span class="tag">${RECIPES[r].name}</span>`),
+        ...(u.victory ? ['<span class="tag win">VICTORIA FINAL</span>'] : []),
       ];
-      if (unlockTxt.length) html += `<p class="dim">Desbloquea: ${unlockTxt.join(', ')}</p>`;
+      if (tags.length) html += `<div class="unlock-tags"><span class="tag" style="border:none;background:none;padding-left:0">Desbloquea:</span>${tags.join('')}</div>`;
+      html += `</div>`;
     }
-    // lista completa de misiones con su estado
-    html += `<h4>Lista de misiones</h4><div class="ms-list">`;
+    // registro de misiones (línea de tiempo)
+    html += `<h4>Registro de misiones</h4><div class="ms-list">`;
     MILESTONES.forEach((m, i) => {
       const cls = i < state.milestoneIndex ? 'done' : i === state.milestoneIndex ? 'now' : 'todo';
       const mark = i < state.milestoneIndex ? '✓' : i === state.milestoneIndex ? '›' : (i + 1);
@@ -241,17 +246,26 @@ function renderHubSheet() {
         <span class="ms-state">${cls === 'done' ? 'Completada' : cls === 'now' ? 'En curso' : 'Pendiente'}</span></div>`;
     });
     html += `</div>`;
+    // conexión eléctrica del HUB
+    const hubB = state.buildings.find(x => x.type === 'hub');
+    if (hubB) html += `<div class="card" style="margin-top:12px">${cableSectionHtml(hubB)}</div>`;
   } else {
-    html += `<p class="dim">Fabrica objetos a mano con los recursos del inventario.</p>`;
+    html += `<p class="dim" style="margin-bottom:6px">Fabrica objetos a mano con los recursos del inventario.</p>`;
     const list = Object.keys(RECIPES).filter(r => state.unlockedR.includes(r) && RECIPES[r].hand);
     if (!list.length) html += `<p class="dim">Aún no conoces ninguna receta. Completa el primer hito.</p>`;
     for (const rid of list) {
       const r = RECIPES[rid];
-      const ins = Object.keys(r.in).map(k => chip(k, r.in[k])).join(' + ');
-      const outs = Object.keys(r.out).map(k => chip(k, r.out[k])).join(' ');
+      const outItem = Object.keys(r.out)[0];
+      const io = Object.keys(r.in).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.in[k]}</span>`).join('<span>+</span>')
+        + '<span class="io-arrow">→</span>'
+        + Object.keys(r.out).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.out[k]}</span>`).join(' ');
       const can = canAfford(r.in);
       html += `<div class="req-row">
-        <div class="req-info">${ins} → ${outs}</div>
+        <div class="icon-tile"><img src="${itemIconURL(outItem)}" alt=""></div>
+        <div class="req-info">
+          <div class="req-name"><span>${r.name}</span></div>
+          <div class="craft-io">${io}</div>
+        </div>
         <span class="btn-group">
           <button class="btn craft" data-r="${rid}" data-n="1" ${can ? '' : 'disabled'}>Fabricar</button>
           <button class="btn craft alt" data-r="${rid}" data-n="10" ${can ? '' : 'disabled'}>×10</button>
@@ -310,10 +324,15 @@ function renderBuildingSheet() {
     if (!avail.length) html += `<p class="dim">No hay recetas desbloqueadas para esta máquina.</p>`;
     for (const rid of avail) {
       const r = RECIPES[rid];
-      const ins = Object.keys(r.in).map(k => chip(k, r.in[k])).join(' + ');
-      const outs = Object.keys(r.out).map(k => chip(k, r.out[k])).join(' ');
+      const outItem = Object.keys(r.out)[0];
+      const io = Object.keys(r.in).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.in[k]}</span>`).join('<span>+</span>')
+        + '<span class="io-arrow">→</span>'
+        + Object.keys(r.out).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.out[k]}</span>`).join(' ')
+        + `<span class="dim">· ${r.time}s</span>`;
       html += `<button class="recipe-btn ${b.recipe === rid ? 'on' : ''}" data-r="${rid}">
-        <b>${r.name}</b><br><small>${ins} → ${outs} · ${r.time}s</small></button>`;
+        <span class="icon-tile" style="width:36px;height:36px"><img src="${itemIconURL(outItem)}" alt=""></span>
+        <span style="flex:1;min-width:0"><span class="rb-name">${r.name}</span>
+        <span class="craft-io">${io}</span></span></button>`;
     }
     html += `</div>`;
     if (b.recipe) {

@@ -162,6 +162,7 @@ function handleTap(sx, sy) {
   const tPos = screenToTile(sx, sy);
   const w = screenToWorld(sx, sy);
   if (!inBounds(tPos.x, tPos.y)) return;
+  addRipple(w.x, w.y);
 
   if (input.mode === 'build') {
     if (ui.buildType) {
