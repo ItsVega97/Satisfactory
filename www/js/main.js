@@ -126,7 +126,6 @@ function loop(t) {
 
   tick(dt);
   draw(t);
-  drawMinimap();
 
   uiRefreshT += dt;
   if (uiRefreshT > 0.4) {
@@ -152,7 +151,6 @@ function boot() {
 
   initUI();
   initInput();
-  initMinimap();
   rebuildPalette();
   updateTopbar();
 

@@ -10,7 +10,7 @@ const ui = {
   beltTool: 'conveyor',   // conveyor | splitter
   sheetKind: null,   // 'hub' | 'building' | 'inventory' | 'menu' | null
   sheetBuilding: null,
-  hubTab: 'hitos',
+  hubTab: 'banco',
 };
 
 const $ = id => document.getElementById(id);
@@ -272,7 +272,23 @@ function renderHubSheet() {
     const hubB = state.buildings.find(x => x.type === 'hub');
     if (hubB) html += `<div class="card" style="margin-top:12px">${cableSectionHtml(hubB)}</div>`;
   } else {
-    html += `<p class="dim" style="margin-bottom:6px">Fabrica objetos a mano con los recursos del inventario. Se agrupan por era, según el hito que los desbloqueó.</p>`;
+    html += `<p class="dim" style="margin-bottom:6px">Fabrica objetos a mano con los recursos del inventario. Es más rápido por unidad que una máquina, pero solo puedes fabricar una cosa a la vez: automatiza para producir a gran escala. Se agrupan por era, según el hito que los desbloqueó.</p>`;
+    const hq = state.handQueue;
+    if (hq.rid) {
+      const r = RECIPES[hq.rid];
+      const dur = r.time / HAND_CRAFT_RATE;
+      const pct = Math.min(100, Math.floor((hq.t / dur) * 100));
+      html += `<div class="card hc-active">
+        <div class="req-row" style="border:none;padding:0">
+          <div class="icon-tile"><img src="${itemIconURL(Object.keys(r.out)[0])}" alt=""></div>
+          <div class="req-info">
+            <div class="req-name"><span>Fabricando ${r.name}</span><b>${hq.left} en cola</b></div>
+            <div class="mini-bar"><div style="width:${pct}%"></div></div>
+          </div>
+          <button class="btn alt" id="bCancelHand">Cancelar</button>
+        </div>
+      </div>`;
+    }
     const list = Object.keys(RECIPES).filter(r => state.unlockedR.includes(r) && RECIPES[r].hand);
     const newSet = new Set(state.newRecipes || []);
     state.newRecipes = [];   // la insignia "Nuevo" solo se muestra la primera vez que se abre el banco
@@ -292,8 +308,10 @@ function renderHubSheet() {
         const outItem = Object.keys(r.out)[0];
         const io = Object.keys(r.in).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.in[k]}</span>`).join('<span>+</span>')
           + '<span class="io-arrow">→</span>'
-          + Object.keys(r.out).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.out[k]}</span>`).join(' ');
+          + Object.keys(r.out).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.out[k]}</span>`).join(' ')
+          + `<span class="dim">· ${(r.time / HAND_CRAFT_RATE).toFixed(1)}s</span>`;
         const can = canAfford(r.in);
+        const busy = hq.rid && hq.rid !== rid;
         html += `<div class="req-row">
           <div class="icon-tile"><img src="${itemIconURL(outItem)}" alt=""></div>
           <div class="req-info">
@@ -301,8 +319,8 @@ function renderHubSheet() {
             <div class="craft-io">${io}</div>
           </div>
           <span class="btn-group">
-            <button class="btn craft" data-r="${rid}" data-n="1" ${can ? '' : 'disabled'}>Fabricar</button>
-            <button class="btn craft alt" data-r="${rid}" data-n="10" ${can ? '' : 'disabled'}>×10</button>
+            <button class="btn craft" data-r="${rid}" data-n="1" ${can && !busy ? '' : 'disabled'}>Fabricar</button>
+            <button class="btn craft alt" data-r="${rid}" data-n="10" ${can && !busy ? '' : 'disabled'}>×10</button>
           </span>
         </div>`;
       }
@@ -319,10 +337,12 @@ function renderHubSheet() {
   const hubB2 = state.buildings.find(x => x.type === 'hub');
   if (hubB2) wireCableSection(body, hubB2);
   body.querySelectorAll('.craft').forEach(btn => btn.addEventListener('click', () => {
-    const made = handCraft(btn.dataset.r, parseInt(btn.dataset.n, 10));
-    if (made > 0) refreshSheet();
-    else toast('Faltan ingredientes');
+    const res = handCraft(btn.dataset.r, parseInt(btn.dataset.n, 10));
+    if (res.ok) refreshSheet();
+    else toast(res.why || 'No se puede fabricar ahora');
   }));
+  const cancelHand = body.querySelector('#bCancelHand');
+  if (cancelHand) cancelHand.addEventListener('click', () => { cancelHandCraft(); refreshSheet(); });
 }
 
 /* ---------------- Panel de edificio ---------------- */

@@ -2,7 +2,7 @@
    Factoría 2D — Lógica del juego (estado, simulación, construcción)
    ========================================================= */
 
-const SAVE_KEY = 'factoria2d_save_v6';
+const SAVE_KEY = 'factoria2d_save_v7';
 let state = null;
 let powerEdges = [];   // conexiones eléctricas activas [{a,b}] (para dibujar cables)
 
@@ -18,7 +18,7 @@ function opposite(d) { return { E: 'W', W: 'E', N: 'S', S: 'N' }[d]; }
 function newGame() {
   const seed = (Math.random() * 2 ** 31) | 0;
   state = {
-    version: 6,
+    version: 7,
     time: 0,
     playTime: 0,
     inventory: {},
@@ -32,6 +32,7 @@ function newGame() {
     unlockedR: [],
     unlockedN: ['iron'],  // tipos de yacimiento catalogados por el escáner FICSIT
     newRecipes: [],        // recetas recién desbloqueadas, para la insignia "Nuevo" del banco
+    handQueue: { rid: null, left: 0, t: 0 },   // cola de fabricación manual del banco
     cables: [],           // conexiones manuales de los postes [{a,b}] (ids de edificios)
     power: { sup: 0, dem: 0, overload: false },
     victory: false,
@@ -464,6 +465,29 @@ function tick(dt) {
 
   computePower();
 
+  // banco del HUB: fabricación manual en cola, con tiempo por unidad
+  const hq = state.handQueue;
+  if (hq.rid && hq.left > 0) {
+    const r = RECIPES[hq.rid];
+    if (!r) { hq.rid = null; hq.left = 0; hq.t = 0; }
+    else if (hq.t <= 0 && !canAfford(r.in)) {
+      toast('Faltan ingredientes para seguir fabricando ' + r.name + '.');
+      hq.rid = null; hq.left = 0; hq.t = 0;
+    } else {
+      if (hq.t <= 0) payCost(r.in);
+      hq.t += dt;
+      const dur = r.time / HAND_CRAFT_RATE;
+      if (hq.t >= dur) {
+        for (const k in r.out) invAdd(k, r.out[k]);
+        state.stats.crafted++;
+        sfx('craft');
+        hq.left--;
+        hq.t = 0;
+        if (hq.left <= 0) { hq.rid = null; hq.left = 0; }
+      }
+    }
+  }
+
   // generadores: quemar combustible según la demanda de su red
   for (const b of state.buildings) {
     const def = BUILDINGS[b.type];
@@ -664,18 +688,27 @@ function loadFuel(b, amount) {
   return n;
 }
 
-/* ---------------- Fabricación manual (banco del HUB) ---------------- */
+/* ---------------- Fabricación manual (banco del HUB) ----------------
+   En cola y con tiempo (ver tick()): más rápida por unidad que una sola
+   máquina, pero secuencial — un jugador solo puede fabricar una cosa a
+   la vez, mientras que la automatización escala sin límite. */
 function handCraft(recipeId, times) {
   const r = RECIPES[recipeId];
-  let made = 0;
-  for (let i = 0; i < times; i++) {
-    if (!canAfford(r.in)) break;
-    payCost(r.in);
-    for (const k in r.out) invAdd(k, r.out[k]);
-    made++;
+  if (!r || !r.hand) return { ok: false, why: 'Receta no disponible' };
+  const q = state.handQueue;
+  if (q.rid && q.rid !== recipeId) {
+    return { ok: false, why: 'Ya estás fabricando ' + RECIPES[q.rid].name + '. Espera a que termine o cancélalo.' };
   }
-  if (made > 0) { state.stats.crafted += made; sfx('craft'); }
-  return made;
+  if (!q.rid && !canAfford(r.in)) return { ok: false, why: 'Faltan ingredientes' };
+  q.rid = recipeId;
+  q.left += times;
+  return { ok: true, queued: times };
+}
+
+function cancelHandCraft() {
+  state.handQueue.rid = null;
+  state.handQueue.left = 0;
+  state.handQueue.t = 0;
 }
 
 /* ---------------- Hitos ---------------- */
@@ -745,7 +778,7 @@ function loadGame() {
     const s = localStorage.getItem(SAVE_KEY);
     if (!s) return false;
     const data = JSON.parse(s);
-    if (!data || data.version !== 6) return false;
+    if (!data || data.version !== 7) return false;
     state = data;
     return true;
   } catch (e) { return false; }

@@ -11,6 +11,11 @@ const BELT_SPEED = 2.0;     // tiles / segundo
 const BELT_SPACING = 0.45;  // separación mínima entre objetos en cinta
 const OUT_CAP = 50;         // capacidad de búfer de salida de las máquinas
 
+/* Fabricación manual en el banco del HUB: ya no es instantánea. Por unidad
+   es más rápida que una sola máquina (multiplicador >1), pero es una cola
+   secuencial de un jugador — para escalar de verdad hace falta automatizar. */
+const HAND_CRAFT_RATE = 1.6;
+
 /* Red eléctrica: distancias máximas de conexión (huecos entre edificios, en tiles) */
 const PLUG_RANGE = 3.5;   // máquina ↔ poste / generador / HUB
 const LINK_RANGE = 6;     // poste ↔ poste / generador / HUB

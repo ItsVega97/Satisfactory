@@ -230,39 +230,6 @@ button.stat:active { transform: translateY(1px); background: var(--panel-solid);
 #ghostOk { background: linear-gradient(180deg, #7cc153, #58a03a); color: #10250a; }
 #ghostCancel, #linkCancel { background: var(--panel); color: var(--text); border: 1px solid var(--line) !important; }
 
-/* ---------- Minimapa ---------- */
-#minimap {
-  position: fixed;
-  left: calc(env(safe-area-inset-left, 0px) + 10px);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-  z-index: 17;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: 6px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
-  transition: opacity 0.15s;
-}
-#minimap.hidden { display: none; }
-#minimapHead {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; margin-bottom: 4px;
-}
-#minimapHead span {
-  font-size: 9.5px; font-weight: 800; color: var(--dim);
-  text-transform: uppercase; letter-spacing: 0.6px;
-}
-#minimapToggle {
-  width: 17px; height: 17px; border-radius: 5px;
-  background: var(--raise-2); border: 1px solid var(--line); color: var(--text);
-  font-size: 12px; line-height: 1; font-weight: 800; cursor: pointer; padding: 0;
-}
-#minimapCanvas {
-  display: block; border-radius: 8px; cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-#minimap.collapsed #minimapCanvas { display: none; }
-
 /* ---------- Palette de construcción ---------- */
 #palette {
   position: fixed;
@@ -371,6 +338,7 @@ button.stat:active { transform: translateY(1px); background: var(--panel-solid);
   padding: 12px;
   margin-bottom: 10px;
 }
+.card.hc-active { border-color: rgba(245, 158, 46, 0.4); background: var(--accent-soft); }
 .mc-kicker {
   font-size: 10px; font-weight: 800; color: var(--accent);
   text-transform: uppercase; letter-spacing: 1px;

@@ -26,7 +26,6 @@ function setMode(m) {
     b.classList.toggle('active', b.dataset.mode === m);
   });
   document.getElementById('palette').classList.toggle('hidden', m !== 'build' && m !== 'belt');
-  setMinimapVisible(m !== 'build' && m !== 'belt');
   updateConfirmBar();
   if (m === 'build') rebuildPalette();
   if (m === 'belt') rebuildBeltPalette();
@@ -239,7 +238,7 @@ function handleTap(sx, sy) {
   // modo selección
   const b = buildingAt(tPos.x, tPos.y);
   if (b) {
-    if (b.type === 'hub') { openHubPanel(); return; }
+    if (b.type === 'hub') { openHubPanel('banco'); return; }
     if (b.type === 'portable_miner') {
       const n = collectPortable(b);
       if (n > 0) addFloat(w.x, w.y, '+' + n + ' ' + itemName(NODE_TYPES[b.nodeType].item), '#ffd64f', NODE_TYPES[b.nodeType].item);
