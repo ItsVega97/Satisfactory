@@ -51,6 +51,71 @@ function clampCam() {
   cam.y = Math.max(0, Math.min(mh, cam.y));
 }
 
+/* ---------------- Minimapa ---------------- */
+const MINI_SCALE = 2;   // px por tile
+let minimapCanvas = null, minimapCtx = null;
+
+function initMinimap() {
+  minimapCanvas = document.getElementById('minimapCanvas');
+  minimapCtx = minimapCanvas.getContext('2d');
+  minimapCanvas.width = MAP_W * MINI_SCALE;
+  minimapCanvas.height = MAP_H * MINI_SCALE;
+  minimapCanvas.style.width = (MAP_W * MINI_SCALE) + 'px';
+  minimapCanvas.style.height = (MAP_H * MINI_SCALE) + 'px';
+
+  minimapCanvas.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    const r = minimapCanvas.getBoundingClientRect();
+    const scaleX = minimapCanvas.width / r.width, scaleY = minimapCanvas.height / r.height;
+    const mx = (e.clientX - r.left) * scaleX / MINI_SCALE;
+    const my = (e.clientY - r.top) * scaleY / MINI_SCALE;
+    cam.x = mx * TILE;
+    cam.y = my * TILE;
+    clampCam();
+    sfx('click');
+  });
+  document.getElementById('minimapToggle').addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    document.getElementById('minimap').classList.toggle('collapsed');
+  });
+}
+
+function setMinimapVisible(v) {
+  const el = document.getElementById('minimap');
+  if (el) el.classList.toggle('hidden', !v);
+}
+
+function drawMinimap() {
+  if (!minimapCtx || !state || !state.world) return;
+  const m = minimapCtx, s = MINI_SCALE;
+  m.fillStyle = '#1c2a17';
+  m.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+  m.fillStyle = '#2e6787';
+  for (const w of state.world.water) {
+    m.beginPath(); m.ellipse(w.x * s, w.y * s, w.r * s, w.r * s * 0.85, 0, 0, Math.PI * 2); m.fill();
+  }
+
+  for (const n of state.world.nodes) {
+    m.fillStyle = nodeScanned(n.type) ? NODE_TYPES[n.type].color : UNSCANNED_COLOR;
+    m.fillRect(n.x * s - 1, n.y * s - 1, s * 2 + 2, s * 2 + 2);
+  }
+
+  const wreck = state.world.wreck;
+  if (wreck && !wreck.salvaged) { m.fillStyle = '#ff7a66'; m.fillRect(wreck.x * s, wreck.y * s, 4 * s, 2 * s); }
+
+  for (const b of state.buildings) {
+    const def = BUILDINGS[b.type];
+    m.fillStyle = b.type === 'hub' ? '#ffd64f' : (def.pole ? '#caa46a' : '#cfe0c8');
+    m.fillRect(b.x * s, b.y * s, Math.max(2, def.w * s), Math.max(2, def.h * s));
+  }
+
+  const vw = window.innerWidth / cam.z / TILE, vh = window.innerHeight / cam.z / TILE;
+  const cx = cam.x / TILE, cy = cam.y / TILE;
+  m.strokeStyle = '#f59e2e'; m.lineWidth = 1.5;
+  m.strokeRect((cx - vw / 2) * s, (cy - vh / 2) * s, vw * s, vh * s);
+}
+
 /* ---------------- Suelo (pre-renderizado) ---------------- */
 function buildGround() {
   groundCanvas = document.createElement('canvas');
@@ -352,12 +417,14 @@ function shadowEllipse(tx, ty, rx, ry) {
 }
 
 /* ---------------- Yacimientos ---------------- */
+const UNSCANNED_COLOR = '#767b85';
 function drawNodes(t) {
   for (const n of state.world.nodes) {
     // si hay un minero encima, no dibujar rocas
     const over = buildingAt(n.x, n.y);
     if (over && (over.type === 'miner1' || over.type === 'miner2')) continue;
-    const c = NODE_TYPES[n.type].color;
+    const scanned = nodeScanned(n.type);
+    const c = scanned ? NODE_TYPES[n.type].color : UNSCANNED_COLOR;
     const cx = (n.x + 1) * TILE, cy = (n.y + 1) * TILE;
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.beginPath(); ctx.ellipse(cx + 4, cy + 8, TILE * 1.05, TILE * 0.6, 0, 0, Math.PI * 2); ctx.fill();
@@ -380,10 +447,22 @@ function drawNodes(t) {
       ctx.lineTo(cx + ox + r * 0.75, cy + oy + r * 0.3);
       ctx.closePath(); ctx.fill();
     }
-    // brillo
-    const tw = (Math.sin(t / 400 + n.id * 2) + 1) / 2;
-    ctx.fillStyle = `rgba(255,255,255,${0.15 + tw * 0.25})`;
-    ctx.beginPath(); ctx.arc(cx - 6, cy - 8, 3, 0, Math.PI * 2); ctx.fill();
+    if (scanned) {
+      // brillo (yacimiento catalogado, listo para explotar)
+      const tw = (Math.sin(t / 400 + n.id * 2) + 1) / 2;
+      ctx.fillStyle = `rgba(255,255,255,${0.15 + tw * 0.25})`;
+      ctx.beginPath(); ctx.arc(cx - 6, cy - 8, 3, 0, Math.PI * 2); ctx.fill();
+    } else {
+      // insignia de lupa: mineral aún sin catalogar por el escáner FICSIT
+      const bx = cx, by = cy - 30;
+      ctx.fillStyle = 'rgba(20,22,26,0.55)';
+      ctx.beginPath(); ctx.arc(bx, by, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#f59e2e'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(bx - 1.5, by - 1.5, 4.4, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx + 1.6, by + 1.6); ctx.lineTo(bx + 5, by + 5);
+      ctx.stroke();
+    }
   }
 }
 

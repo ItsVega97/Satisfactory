@@ -12,7 +12,8 @@ const input = {
 
 function setMode(m) {
   if (m === 'belt' && !state.unlockedB.includes('conveyor')) {
-    toast('Las cintas se desbloquean en el hito "Logística"');
+    const msIdx = MILESTONES.findIndex(x => (x.unlocks.buildings || []).includes('conveyor'));
+    toast('Las cintas se desbloquean en el hito "' + (MILESTONES[msIdx] ? MILESTONES[msIdx].name : '?') + '"');
     return;
   }
   input.mode = m;
@@ -25,6 +26,7 @@ function setMode(m) {
     b.classList.toggle('active', b.dataset.mode === m);
   });
   document.getElementById('palette').classList.toggle('hidden', m !== 'build' && m !== 'belt');
+  setMinimapVisible(m !== 'build' && m !== 'belt');
   updateConfirmBar();
   if (m === 'build') rebuildPalette();
   if (m === 'belt') rebuildBeltPalette();
@@ -177,7 +179,11 @@ function handleTap(sx, sy) {
   }
 
   if (input.mode === 'belt' && ui.beltTool === 'splitter') {
-    if (!state.unlockedB.includes('splitter')) { toast('El Separador se desbloquea en el hito "Logística"'); return; }
+    if (!state.unlockedB.includes('splitter')) {
+      const msIdx = MILESTONES.findIndex(x => (x.unlocks.buildings || []).includes('splitter'));
+      toast('El Separador se desbloquea en el hito "' + (MILESTONES[msIdx] ? MILESTONES[msIdx].name : '?') + '"');
+      return;
+    }
     ui.ghost = { type: 'splitter', x: tPos.x, y: tPos.y };
     updateConfirmBar();
     return;

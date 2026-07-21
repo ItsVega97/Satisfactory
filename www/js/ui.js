@@ -250,6 +250,7 @@ function renderHubSheet() {
       }
       const u = ms.unlocks || {};
       const tags = [
+        ...(u.nodes || []).map(n => `<span class="tag scan">${ITEMS[NODE_TYPES[n].item].name} catalogado</span>`),
         ...(u.buildings || []).map(b => `<span class="tag">${BUILDINGS[b].name}</span>`),
         ...(u.recipes || []).map(r => `<span class="tag">${RECIPES[r].name}</span>`),
         ...(u.victory ? ['<span class="tag win">VICTORIA FINAL</span>'] : []),
@@ -271,28 +272,41 @@ function renderHubSheet() {
     const hubB = state.buildings.find(x => x.type === 'hub');
     if (hubB) html += `<div class="card" style="margin-top:12px">${cableSectionHtml(hubB)}</div>`;
   } else {
-    html += `<p class="dim" style="margin-bottom:6px">Fabrica objetos a mano con los recursos del inventario.</p>`;
+    html += `<p class="dim" style="margin-bottom:6px">Fabrica objetos a mano con los recursos del inventario. Se agrupan por era, según el hito que los desbloqueó.</p>`;
     const list = Object.keys(RECIPES).filter(r => state.unlockedR.includes(r) && RECIPES[r].hand);
+    const newSet = new Set(state.newRecipes || []);
+    state.newRecipes = [];   // la insignia "Nuevo" solo se muestra la primera vez que se abre el banco
     if (!list.length) html += `<p class="dim">Aún no conoces ninguna receta. Completa el primer hito.</p>`;
+    // agrupar por era (índice del hito que desbloqueó la receta)
+    const eraOf = rid => MILESTONES.findIndex(m => (m.unlocks.recipes || []).includes(rid));
+    const eras = {};
     for (const rid of list) {
-      const r = RECIPES[rid];
-      const outItem = Object.keys(r.out)[0];
-      const io = Object.keys(r.in).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.in[k]}</span>`).join('<span>+</span>')
-        + '<span class="io-arrow">→</span>'
-        + Object.keys(r.out).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.out[k]}</span>`).join(' ');
-      const can = canAfford(r.in);
-      html += `<div class="req-row">
-        <div class="icon-tile"><img src="${itemIconURL(outItem)}" alt=""></div>
-        <div class="req-info">
-          <div class="req-name"><span>${r.name}</span></div>
-          <div class="craft-io">${io}</div>
-        </div>
-        <span class="btn-group">
-          <button class="btn craft" data-r="${rid}" data-n="1" ${can ? '' : 'disabled'}>Fabricar</button>
-          <button class="btn craft alt" data-r="${rid}" data-n="10" ${can ? '' : 'disabled'}>×10</button>
-        </span>
-      </div>`;
+      const e = eraOf(rid);
+      (eras[e] = eras[e] || []).push(rid);
     }
+    Object.keys(eras).map(Number).sort((a, b) => a - b).forEach(e => {
+      const eraName = e >= 0 && MILESTONES[e] ? MILESTONES[e].name : 'Piezas iniciales';
+      html += `<h4>Era ${e + 1} · ${eraName}</h4>`;
+      for (const rid of eras[e]) {
+        const r = RECIPES[rid];
+        const outItem = Object.keys(r.out)[0];
+        const io = Object.keys(r.in).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.in[k]}</span>`).join('<span>+</span>')
+          + '<span class="io-arrow">→</span>'
+          + Object.keys(r.out).map(k => `<span class="io"><img src="${itemIconURL(k)}" alt="">${r.out[k]}</span>`).join(' ');
+        const can = canAfford(r.in);
+        html += `<div class="req-row">
+          <div class="icon-tile"><img src="${itemIconURL(outItem)}" alt=""></div>
+          <div class="req-info">
+            <div class="req-name"><span>${r.name}${newSet.has(rid) ? ' <span class="tag new">Nuevo</span>' : ''}</span></div>
+            <div class="craft-io">${io}</div>
+          </div>
+          <span class="btn-group">
+            <button class="btn craft" data-r="${rid}" data-n="1" ${can ? '' : 'disabled'}>Fabricar</button>
+            <button class="btn craft alt" data-r="${rid}" data-n="10" ${can ? '' : 'disabled'}>×10</button>
+          </span>
+        </div>`;
+      }
+    });
   }
   body.innerHTML = html;
 
@@ -502,6 +516,7 @@ function renderMenuSheet() {
     Producido: <b>${state.stats.produced}</b> · Fabricado a mano: <b>${state.stats.crafted}</b></p>
     <div class="menu-list">
       <button class="btn" id="mSound">${audioMuted ? 'Activar sonido' : 'Silenciar sonido'}</button>
+      <button class="btn" id="mMusic">${musicMuted ? 'Activar música' : 'Silenciar música'}</button>
       <button class="btn" id="mSave">Guardar partida</button>
       <button class="btn" id="mHelp">Cómo jugar</button>
       <button class="btn danger" id="mReset">Nueva partida</button>
@@ -515,10 +530,12 @@ function renderMenuSheet() {
         <li><b>Automatiza:</b> desbloquea Fundidoras, Constructores y Mineros. Asigna una receta tocando la máquina.</li>
         <li><b>Cintas:</b> en el modo cintas, arrastra el dedo para trazarlas desde los mineros a las máquinas y hasta el HUB.</li>
         <li><b>Electricidad:</b> toda la red se cablea a mano: selecciona un edificio, pulsa "Trazar cable" y toca el destino (cuesta 1 Cable; puedes cortarlos). Las máquinas, generadores y el HUB admiten <b>1 solo cable</b>; los <b>postes eléctricos</b> admiten <b>3</b> y reparten la energía por el resto de la red. Alimenta los quemadores con biomasa y los generadores de carbón por cinta. Si la demanda supera la generación, la red se sobrecarga.</li>
-        <li><b>Objetivo:</b> completa los 6 hitos y envía la Fase 1 del Ascensor Espacial (~30 min).</li>
+        <li><b>Minerales sin catalogar:</b> el cobre, la caliza y el carbón aparecen en el mapa como roca gris (con una lupa) hasta que el escáner FICSIT los cataloga en el hito correspondiente. No se pueden extraer antes.</li>
+        <li><b>Objetivo:</b> completa los 10 hitos y entrega la Fase 2 del Ascensor Espacial (~2 horas).</li>
       </ol>
     </div>`;
   $('mSound').addEventListener('click', () => { toggleMute(); refreshSheet(); });
+  $('mMusic').addEventListener('click', () => { unlockAudio(); toggleMusicMute(); refreshSheet(); });
   $('mSave').addEventListener('click', () => { saveGame() ? toast('Partida guardada') : toast('Error al guardar'); });
   $('mHelp').addEventListener('click', () => $('helpBox').classList.toggle('hidden'));
   $('mReset').addEventListener('click', () => {
@@ -546,20 +563,26 @@ const HINTS = [
     text: 'Abre Construir y coloca un Taladro portátil sobre un yacimiento (cuesta 5 de mineral de hierro).' },
   { id: 'deliver0', cond: () => state.milestoneIndex === 0 && invCount('iron_ore') + (state.msProgress.iron_ore || 0) >= 30,
     text: 'Toca el HUB y entrega el mineral de hierro para completar el hito.' },
-  { id: 'smelter', cond: () => state.milestoneIndex === 1 && !state.buildings.some(b => b.type === 'smelter'),
-    text: 'Fabrica varillas y alambre en el banco del HUB y construye una Fundidora cerca del HUB (te dará sus 10 MW).' },
+  { id: 'craft1', cond: () => state.milestoneIndex === 1,
+    text: 'Funde lingotes de hierro y fabrica placas y tornillos en el banco del HUB. El Contenedor guardará el excedente.' },
+  { id: 'copperScan', cond: () => state.milestoneIndex === 2 && state.stats.mined > 0 && !state.buildings.some(b => b.type === 'power_pole'),
+    text: 'El escáner ha catalogado el cobre: fabrica alambre y cable, y levanta postes eléctricos junto a un Quemador de biomasa.' },
+  { id: 'automation', cond: () => state.milestoneIndex === 3 && Object.keys(state.beltMap).length === 0,
+    text: 'Coloca un Minero Mk.1 y un Constructor, conéctalos con cintas (modo Cintas) y déjalos trabajar solos.' },
+  { id: 'limestoneScan', cond: () => state.milestoneIndex === 4,
+    text: 'Nuevo mineral catalogado: la caliza. Fabrica hormigón y usa Separadores para repartir una cinta en tres.' },
+  { id: 'assembler', cond: () => state.milestoneIndex === 5 && !state.buildings.some(b => b.type === 'assembler'),
+    text: 'La Ensambladora combina dos ingredientes a la vez: constrúyela para placas reforzadas y rotores.' },
+  { id: 'coalScan', cond: () => state.milestoneIndex === 6,
+    text: 'El escáner cataloga el carbón: lleva por cinta las Fundiciones de acero y considera un Generador de carbón (75 MW).' },
   { id: 'noconn', cond: () => state.buildings.some(b => BUILDINGS[b.type].power < 0 && b._conn === false),
     text: 'Hay máquinas sin conexión: selecciónalas (o a un poste/generador) y usa "Trazar cable" para unirlas a la red.' },
   { id: 'recipe', cond: () => state.buildings.some(b => MACH_RECIPES[b.type] && !b.recipe),
     text: 'Tienes máquinas sin receta (icono "?"). Tócalas y asigna una receta.' },
-  { id: 'belts', cond: () => state.milestoneIndex === 2 && Object.keys(state.beltMap).length === 0,
-    text: 'Usa el modo cintas para conectar mineros, máquinas y HUB y así automatizar.' },
   { id: 'overload', cond: () => state.power.overload,
     text: 'Red sobrecargada: construye más generadores (o aliméntalos) para cubrir la demanda.' },
   { id: 'fuel', cond: () => state.buildings.some(b => BUILDINGS[b.type].fuelItem && b.fuel <= 0 && b.burnLeft <= 0),
     text: 'Un generador no tiene combustible. Tócalo y cárgalo.' },
-  { id: 'coal', cond: () => state.milestoneIndex >= 3 && !state.buildings.some(b => b.type === 'coal_generator'),
-    text: 'El Generador de carbón (75 MW) se alimenta por cinta desde los yacimientos de carbón, en la periferia del mapa.' },
 ];
 
 function updateHint() {
@@ -585,6 +608,33 @@ function onVictory() {
     <p>Entregados al HUB: <b>${state.stats.delivered}</b></p>`;
   $('victory').classList.remove('hidden');
   saveGame();
+}
+
+/* Pantalla de "nuevo desbloqueo" al completar un hito (no victoria) */
+function showUnlockScreen(ms) {
+  const u = ms.unlocks || {};
+  const items = [
+    ...(u.nodes || []).map(n => ({
+      icon: itemIconURL(NODE_TYPES[n].item), label: ITEMS[NODE_TYPES[n].item].name,
+      tag: 'Mineral catalogado', cls: 'scan',
+    })),
+    ...(u.buildings || []).map(b => ({ icon: buildingIconURL(b), label: BUILDINGS[b].name, tag: 'Edificio', cls: '' })),
+    ...(u.recipes || []).map(r => ({
+      icon: itemIconURL(Object.keys(RECIPES[r].out)[0]), label: RECIPES[r].name, tag: 'Receta', cls: '',
+    })),
+  ];
+  if (!items.length) return false;
+  $('uTitle').textContent = ms.name;
+  const next = MILESTONES[state.milestoneIndex];
+  $('uNext').textContent = next ? 'Siguiente hito: ' + next.name : '¡Has completado todos los hitos!';
+  $('uGrid').innerHTML = items.map(it => `
+    <div class="u-item ${it.cls}">
+      <div class="icon-tile" style="width:52px;height:52px"><img src="${it.icon}" alt=""></div>
+      <b>${it.label}</b>
+      <span class="dim">${it.tag}</span>
+    </div>`).join('');
+  $('unlockScreen').classList.remove('hidden');
+  return true;
 }
 
 function onUnlocksChanged() {
@@ -613,4 +663,5 @@ function initUI() {
   $('ghostOk').addEventListener('click', confirmGhost);
   $('ghostCancel').addEventListener('click', cancelGhost);
   $('vContinue').addEventListener('click', () => $('victory').classList.add('hidden'));
+  $('uContinue').addEventListener('click', () => { $('unlockScreen').classList.add('hidden'); sfx('click'); });
 }

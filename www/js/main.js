@@ -5,14 +5,87 @@
 /* ---------------- Audio (sintetizado, sin assets) ---------------- */
 let audioCtx = null;
 let audioMuted = false;
+let musicMuted = false;
+const AUDIO_PREFS_KEY = 'factoria2d_audio_prefs';
+
+/* Los ajustes de sonido/música son independientes de la partida guardada,
+   así "Nueva partida" no los reinicia. */
+function loadAudioPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem(AUDIO_PREFS_KEY) || '{}');
+    audioMuted = !!p.sound;
+    musicMuted = !!p.music;
+  } catch (e) { /* preferencias por defecto */ }
+}
+function saveAudioPrefs() {
+  try { localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify({ sound: audioMuted, music: musicMuted })); } catch (e) { /* ignorar */ }
+}
 
 function unlockAudio() {
+  const first = !audioCtx;
   if (!audioCtx) {
     try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (first && !musicMuted) startMusic();
 }
-function toggleMute() { audioMuted = !audioMuted; }
+function toggleMute() { audioMuted = !audioMuted; saveAudioPrefs(); }
+function toggleMusicMute() {
+  musicMuted = !musicMuted;
+  if (musicMuted) stopMusic(); else startMusic();
+  saveAudioPrefs();
+}
+
+/* ---------------- Música ambiente (procedural, generativa, sin assets) ----------------
+   Pad cálido de dos osciladores ligeramente desafinados + notas sueltas
+   en escala pentatónica menor, disparadas con ritmo aleatorio suave. */
+let musicMaster = null;
+let musicTimer = null;
+const MUSIC_SCALE = [0, 3, 5, 7, 10, 12, 15];   // pentatónica menor + séptima, en semitonos
+const MUSIC_ROOT = 196;                         // Sol2
+
+function startMusic() {
+  if (!audioCtx || musicMuted || musicMaster) return;
+  musicMaster = audioCtx.createGain();
+  musicMaster.gain.value = 0;
+  musicMaster.connect(audioCtx.destination);
+  musicMaster.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 3.5);
+  scheduleMusicNote();
+}
+function stopMusic() {
+  clearTimeout(musicTimer);
+  if (!musicMaster || !audioCtx) { musicMaster = null; return; }
+  const now = audioCtx.currentTime;
+  const node = musicMaster;
+  node.gain.cancelScheduledValues(now);
+  node.gain.setValueAtTime(node.gain.value, now);
+  node.gain.linearRampToValueAtTime(0, now + 1.2);
+  setTimeout(() => { try { node.disconnect(); } catch (e) { /* ya desconectado */ } }, 1300);
+  musicMaster = null;
+}
+function scheduleMusicNote() {
+  if (!musicMaster || !audioCtx || audioMuted) { musicTimer = setTimeout(scheduleMusicNote, 1800); return; }
+  const degree = MUSIC_SCALE[Math.floor(Math.random() * MUSIC_SCALE.length)];
+  const oct = Math.random() < 0.55 ? 0 : 12;
+  const freq = MUSIC_ROOT * Math.pow(2, (degree + oct) / 12);
+  const dur = 2.8 + Math.random() * 2.4;
+  const now = audioCtx.currentTime;
+
+  const o1 = audioCtx.createOscillator(); o1.type = 'sine'; o1.frequency.value = freq;
+  const o2 = audioCtx.createOscillator(); o2.type = 'triangle'; o2.frequency.value = freq * 2.006;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(1, now + dur * 0.4);
+  g.gain.linearRampToValueAtTime(0, now + dur);
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'lowpass'; filt.frequency.value = 950;
+
+  o1.connect(g); o2.connect(g); g.connect(filt); filt.connect(musicMaster);
+  o1.start(now); o1.stop(now + dur + 0.15);
+  o2.start(now); o2.stop(now + dur + 0.15);
+
+  musicTimer = setTimeout(scheduleMusicNote, (1.8 + Math.random() * 2.2) * 1000);
+}
 
 function tone(freq, dur, type, vol, when) {
   if (!audioCtx || audioMuted) return;
@@ -53,6 +126,7 @@ function loop(t) {
 
   tick(dt);
   draw(t);
+  drawMinimap();
 
   uiRefreshT += dt;
   if (uiRefreshT > 0.4) {
@@ -68,6 +142,7 @@ function loop(t) {
 
 /* ---------------- Arranque ---------------- */
 function boot() {
+  loadAudioPrefs();
   const loaded = loadGame();
   if (!loaded) newGame();
 
@@ -77,6 +152,7 @@ function boot() {
 
   initUI();
   initInput();
+  initMinimap();
   rebuildPalette();
   updateTopbar();
 

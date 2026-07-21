@@ -93,7 +93,7 @@ const BUILDINGS = {
     buildable: true,
   },
   smelter: {
-    name: 'Fundidora', w: 2, h: 2, cost: { rod: 5, wire: 8 }, power: -4,
+    name: 'Fundidora', w: 2, h: 2, cost: { rod: 5, iron_ore: 15 }, power: -4,
     color: '#b06a3c', roof: '#cd8451',
     desc: 'Funde mineral en lingotes. Requiere 4 MW y conexión a la red eléctrica.',
     buildable: true,
@@ -161,71 +161,75 @@ const MACH_RECIPES = {
   assembler: ['reinforced_plate', 'rotor', 'stator', 'motor', 'modular_frame', 'encased_beam', 'heavy_frame'],
 };
 
-/* ---------------- Hitos (Hitos del HUB) ---------------- */
+/* ---------------- Hitos (Hitos del HUB) ----------------
+   Progresión escalonada: cada hito introduce UN concepto y, cuando toca,
+   "escanea" (desbloquea) un nuevo mineral en el mapa (unlocks.nodes). */
 const MILESTONES = [
   {
-    name: 'Puesta en marcha del HUB',
-    desc: 'Recolecta mineral de hierro picando a mano o con taladros portátiles.',
+    name: 'Fundición',
+    desc: 'Recolecta mineral de hierro picando a mano o con taladros portátiles y aprende a fundirlo.',
     req: { iron_ore: 30 },
-    unlocks: { buildings: ['smelter'], recipes: ['iron_ingot', 'copper_ingot', 'rod', 'wire'] },
+    unlocks: { buildings: ['smelter'], recipes: ['iron_ingot', 'rod'] },
   },
   {
-    name: 'Logística',
-    desc: 'Funde lingotes de hierro para desbloquear la logística básica.',
-    req: { iron_ingot: 20 },
-    unlocks: { buildings: ['constructor', 'conveyor', 'splitter', 'storage', 'power_pole'], recipes: ['plate', 'screw'] },
+    name: 'Piezas de hierro',
+    desc: 'Funde lingotes y fabrica tus primeras piezas en el banco del HUB.',
+    req: { iron_ingot: 15 },
+    unlocks: { buildings: ['storage'], recipes: ['plate', 'screw'] },
+  },
+  {
+    name: 'Energía',
+    desc: 'El escáner FICSIT ha catalogado el COBRE. Fabrica alambre y cable, y levanta tu red eléctrica.',
+    req: { plate: 20 },
+    unlocks: { nodes: ['copper'], buildings: ['power_pole', 'biomass_burner'], recipes: ['copper_ingot', 'wire', 'cable'] },
   },
   {
     name: 'Automatización',
-    desc: 'Produce placas y varillas. Desbloquea mineros automáticos y energía.',
-    req: { plate: 30, rod: 30 },
-    unlocks: { buildings: ['miner1', 'biomass_burner'], recipes: ['cable', 'concrete'] },
+    desc: 'Mineros, cintas y constructores: deja que la fábrica trabaje por ti.',
+    req: { wire: 30, cable: 10 },
+    unlocks: { buildings: ['miner1', 'conveyor', 'constructor'] },
   },
   {
-    name: 'Electrónica',
-    desc: 'Domina el cobre y el hormigón para la industria avanzada.',
-    req: { wire: 60, cable: 20, concrete: 20 },
-    unlocks: { buildings: ['assembler', 'coal_generator'], recipes: ['reinforced_plate'] },
+    name: 'Construcción',
+    desc: 'Nueva lectura del escáner: CALIZA. Mezcla hormigón y reparte tus cintas con separadores.',
+    req: { plate: 40 },
+    unlocks: { nodes: ['limestone'], buildings: ['splitter'], recipes: ['concrete'] },
   },
   {
-    name: 'Ingeniería pesada',
-    desc: 'Fabrica placas reforzadas en serie.',
-    req: { reinforced_plate: 15, concrete: 30 },
-    unlocks: { recipes: ['rotor'] },
+    name: 'Ingeniería',
+    desc: 'Con hormigón llega la Ensambladora: combina piezas en componentes avanzados.',
+    req: { concrete: 25 },
+    unlocks: { buildings: ['assembler'], recipes: ['reinforced_plate', 'rotor'] },
   },
   {
     name: 'Ascensor Espacial: Fase 1',
-    desc: 'Primera entrega del proyecto FICSIT. Desbloquea la era del acero.',
-    req: { rotor: 10, reinforced_plate: 10, cable: 50 },
-    unlocks: { buildings: ['foundry'], recipes: ['steel_ingot', 'steel_beam', 'steel_pipe'] },
+    desc: 'Primera entrega FICSIT. El escáner cataloga el CARBÓN: comienza la era del acero.',
+    req: { reinforced_plate: 12, rotor: 8 },
+    unlocks: { nodes: ['coal'], buildings: ['foundry', 'coal_generator'], recipes: ['steel_ingot', 'steel_beam', 'steel_pipe'] },
   },
   {
-    name: 'Acero',
-    desc: 'Lleva carbón por cinta hasta las fundiciones y produce acero en serie.',
-    req: { steel_beam: 30, steel_pipe: 30 },
+    name: 'Acero en serie',
+    desc: 'Lleva carbón por cinta a las fundiciones y produce vigas y tubos de acero.',
+    req: { steel_beam: 20, steel_pipe: 20 },
     unlocks: { buildings: ['miner2'], recipes: ['stator', 'motor'] },
   },
   {
-    name: 'Motores',
-    desc: 'Combina rotores y estátores para fabricar motores industriales.',
-    req: { stator: 20, motor: 10 },
-    unlocks: { recipes: ['modular_frame', 'encased_beam'] },
-  },
-  {
     name: 'Estructuras industriales',
-    desc: 'Bastidores modulares y vigas revestidas para la fase final.',
-    req: { modular_frame: 15, encased_beam: 20 },
-    unlocks: { recipes: ['heavy_frame'] },
+    desc: 'Bastidores y vigas revestidas: las estructuras de la fase final.',
+    req: { motor: 8, stator: 12 },
+    unlocks: { recipes: ['modular_frame', 'encased_beam', 'heavy_frame'] },
   },
   {
     name: 'Ascensor Espacial: Fase 2',
     desc: 'La gran entrega final. ¡Termina el proyecto del Ascensor Espacial!',
-    req: { heavy_frame: 5, motor: 20, cable: 100 },
+    req: { heavy_frame: 4, motor: 10 },
     unlocks: { victory: true },
   },
 ];
 
-/* Tipos de yacimiento */
+/* Tipos de yacimiento. El hierro está catalogado desde el inicio
+   (state.unlockedN = ['iron']); el resto se cataloga en el hito que lo
+   liste en unlocks.nodes — hasta entonces aparecen como roca sin identificar. */
 const NODE_TYPES = {
   iron:      { item: 'iron_ore',   color: '#aeb7c9', name: 'Yacimiento de hierro' },
   copper:    { item: 'copper_ore', color: '#e08a52', name: 'Yacimiento de cobre' },

@@ -2,7 +2,7 @@
    Factoría 2D — Lógica del juego (estado, simulación, construcción)
    ========================================================= */
 
-const SAVE_KEY = 'factoria2d_save_v5';
+const SAVE_KEY = 'factoria2d_save_v6';
 let state = null;
 let powerEdges = [];   // conexiones eléctricas activas [{a,b}] (para dibujar cables)
 
@@ -18,7 +18,7 @@ function opposite(d) { return { E: 'W', W: 'E', N: 'S', S: 'N' }[d]; }
 function newGame() {
   const seed = (Math.random() * 2 ** 31) | 0;
   state = {
-    version: 5,
+    version: 6,
     time: 0,
     playTime: 0,
     inventory: {},
@@ -30,6 +30,8 @@ function newGame() {
     msProgress: {},       // item -> entregado (del hito actual)
     unlockedB: ['hub'],
     unlockedR: [],
+    unlockedN: ['iron'],  // tipos de yacimiento catalogados por el escáner FICSIT
+    newRecipes: [],        // recetas recién desbloqueadas, para la insignia "Nuevo" del banco
     cables: [],           // conexiones manuales de los postes [{a,b}] (ids de edificios)
     power: { sup: 0, dem: 0, overload: false },
     victory: false,
@@ -42,6 +44,9 @@ function newGame() {
 }
 
 function hubBuilt() { return state.buildings.some(b => b.type === 'hub'); }
+
+/* Un yacimiento solo se puede explotar una vez el escáner FICSIT lo cataloga */
+function nodeScanned(type) { return state.unlockedN.includes(type); }
 
 /* Recuperar las piezas de la nave estrellada (una sola vez) */
 function salvageWreck() {
@@ -133,6 +138,7 @@ function canPlaceBuilding(type, x, y) {
   if (onNode) {
     node = nodeAt(x, y);
     if (!node) return { ok: false, why: 'Debe colocarse sobre un yacimiento' };
+    if (!nodeScanned(node.type)) return { ok: false, why: 'Yacimiento sin catalogar: el escáner FICSIT aún no lo reconoce' };
     if (isMiner) { x = node.x; y = node.y; }
   }
   for (let dy = 0; dy < def.h; dy++) {
@@ -594,6 +600,10 @@ function manualMine(node) {
     toast('Necesitas el pico de minero: recupera los restos de la nave y construye el HUB.');
     return false;
   }
+  if (!nodeScanned(node.type)) {
+    toast('Yacimiento sin catalogar. El escáner FICSIT lo identificará en un futuro hito.');
+    return false;
+  }
   const item = NODE_TYPES[node.type].item;
   invAdd(item, 1);
   state.stats.mined++;
@@ -699,7 +709,12 @@ function checkMilestone() {
   // aplicar desbloqueos
   const u = ms.unlocks || {};
   (u.buildings || []).forEach(b => { if (!state.unlockedB.includes(b)) state.unlockedB.push(b); });
-  (u.recipes || []).forEach(r => { if (!state.unlockedR.includes(r)) state.unlockedR.push(r); });
+  (u.recipes || []).forEach(r => {
+    if (!state.unlockedR.includes(r)) state.unlockedR.push(r);
+    if (!state.newRecipes) state.newRecipes = [];
+    if (!state.newRecipes.includes(r)) state.newRecipes.push(r);
+  });
+  (u.nodes || []).forEach(n => { if (!state.unlockedN.includes(n)) state.unlockedN.push(n); });
   state.milestoneIndex++;
   state.msProgress = {};
   sfx('milestone');
@@ -707,9 +722,11 @@ function checkMilestone() {
     state.victory = true;
     onVictory();
   } else {
-    toast('Hito completado: ' + ms.name);
-    const next = currentMilestone();
-    if (next) toast('Nuevo hito: ' + next.name);
+    if (!showUnlockScreen(ms)) {
+      toast('Hito completado: ' + ms.name);
+      const next = currentMilestone();
+      if (next) toast('Nuevo hito: ' + next.name);
+    }
     onUnlocksChanged();
   }
 }
@@ -728,7 +745,7 @@ function loadGame() {
     const s = localStorage.getItem(SAVE_KEY);
     if (!s) return false;
     const data = JSON.parse(s);
-    if (!data || data.version !== 5) return false;
+    if (!data || data.version !== 6) return false;
     state = data;
     return true;
   } catch (e) { return false; }

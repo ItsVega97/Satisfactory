@@ -45,6 +45,14 @@
 
   <div id="palette" class="hidden"></div>
 
+  <div id="minimap">
+    <div id="minimapHead">
+      <span>Mapa</span>
+      <button id="minimapToggle" title="Plegar/Desplegar">–</button>
+    </div>
+    <canvas id="minimapCanvas"></canvas>
+  </div>
+
   <div id="sheet" class="hidden">
     <div id="sheetHead">
       <span id="sheetTitle"></span>
@@ -61,6 +69,16 @@
       <p>Has enviado las dos fases del proyecto. FICSIT está orgullosa de ti, ingeniero.</p>
       <div id="vStats"></div>
       <button id="vContinue" class="btn">Seguir construyendo</button>
+    </div>
+  </div>
+
+  <div id="unlockScreen" class="hidden">
+    <div class="u-card">
+      <span class="u-kicker">Hito completado</span>
+      <h1 id="uTitle"></h1>
+      <p id="uNext" class="dim"></p>
+      <div id="uGrid" class="u-grid"></div>
+      <button id="uContinue" class="btn">Continuar</button>
     </div>
   </div>
 
